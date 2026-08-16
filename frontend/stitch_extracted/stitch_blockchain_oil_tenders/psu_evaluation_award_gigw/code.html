@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Evaluation &amp; Award - Secure Tender System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100..700;1,100..700&amp;family=Noto+Sans:ital,wght@0,100..900;1,100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "secondary-fixed": "#cde5ff",
+                "national-identity-bar": "#ffffff",
+                "on-tertiary-fixed-variant": "#00458d",
+                "on-secondary": "#ffffff",
+                "surface-container-highest": "#e1e2eb",
+                "tertiary-container": "#0056ac",
+                "inverse-surface": "#2d3037",
+                "inverse-on-surface": "#eff0f9",
+                "error": "#ba1a1a",
+                "surface-container": "#ecedf6",
+                "surface-bright": "#f9f9ff",
+                "on-error-container": "#93000a",
+                "on-secondary-fixed-variant": "#2c4962",
+                "surface-ledger": "#f9f9ff",
+                "surface-container-lowest": "#ffffff",
+                "tertiary-fixed-dim": "#aac7ff",
+                "on-tertiary": "#ffffff",
+                "on-tertiary-fixed": "#001b3e",
+                "secondary-container": "#c2e0ff",
+                "surface-tint": "#9d4307",
+                "on-primary-fixed": "#341100",
+                "primary-container": "#953d00",
+                "on-error": "#ffffff",
+                "surface-dim": "#d8dae2",
+                "error-container": "#ffdad6",
+                "on-tertiary-container": "#b6cfff",
+                "surface": "#f9f9ff",
+                "border-hairline": "rgba(25, 28, 34, 0.15)",
+                "outline-variant": "#ddc1b5",
+                "tertiary-fixed": "#d6e3ff",
+                "secondary-fixed-dim": "#accae8",
+                "tertiary": "#003f81",
+                "inverse-primary": "#ffb692",
+                "on-primary-container": "#ffc1a3",
+                "on-primary": "#ffffff",
+                "primary-fixed": "#ffdbcb",
+                "on-primary-fixed-variant": "#793000",
+                "on-background": "#191c22",
+                "surface-variant": "#e1e2eb",
+                "accessibility-bar": "#2d3038",
+                "on-surface": "#191c22",
+                "on-secondary-fixed": "#001d32",
+                "surface-container-low": "#f2f3fc",
+                "secondary": "#44617b",
+                "on-surface-variant": "#564339",
+                "surface-container-high": "#e6e8f0",
+                "background": "#f9f9ff",
+                "on-secondary-container": "#47647e",
+                "primary": "#702c00",
+                "outline": "#897268",
+                "primary-fixed-dim": "#ffb692"
+        },
+        "borderRadius": {
+                "DEFAULT": "0",
+                "lg": "0",
+                "xl": "0",
+                "full": "9999px"
+        },
+        "spacing": {
+                "unit": "4px",
+                "margin": "24px",
+                "gutter": "16px",
+                "container-max": "1200px"
+        },
+        "fontFamily": {
+                "headline-lg-mobile": [
+                        "Noto Sans"
+                ],
+                "headline-md": [
+                        "Noto Sans"
+                ],
+                "headline-sm": [
+                        "Noto Sans"
+                ],
+                "body-lg": [
+                        "Noto Sans"
+                ],
+                "body-md": [
+                        "Noto Sans"
+                ],
+                "label-caps": [
+                        "Noto Sans"
+                ],
+                "code-md": [
+                        "IBM Plex Mono"
+                ],
+                "headline-lg": [
+                        "Noto Sans"
+                ]
+        },
+        "fontSize": {
+                "headline-lg-mobile": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-sm": [
+                        "18px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-caps": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "code-md": [
+                        "13px",
+                        {
+                                "lineHeight": "18px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "fontWeight": "700"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        body { background-color: #F2EFE9; color: #191c22; }
+        .hairline-b { border-bottom: 1px solid rgba(28, 31, 38, 0.15); }
+        .hairline-t { border-top: 1px solid rgba(28, 31, 38, 0.15); }
+        .hairline-r { border-right: 1px solid rgba(28, 31, 38, 0.15); }
+        .hairline-l { border-left: 1px solid rgba(28, 31, 38, 0.15); }
+        .grid-bg {
+            background-image: linear-gradient(to right, rgba(28, 31, 38, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(28, 31, 38, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        
+        /* Specialized Table Row Hover */
+        .ledger-row:hover { background-color: rgba(28, 31, 38, 0.02); }
+        
+        /* Oxidized Copper Button Override */
+        .btn-award {
+            background-color: #44617b; /* secondary */
+            color: #ffffff;
+            border: 1px solid #2c4962; /* on-secondary-fixed-variant */
+            transition: all 0.2s ease;
+        }
+        .btn-award:hover {
+            background-color: #2c4962;
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body class="font-body-md antialiased grid-bg min-h-screen flex flex-col">
+<!-- National Identity Bar -->
+<div class="bg-national-identity-bar border-b border-border-hairline px-6 py-1.5 w-full">
+<div class="max-w-container-max mx-auto flex justify-between items-center text-[10px] sm:text-xs">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">temple_hindu</span>
+<span class="font-medium">भारत सरकार | Government of India</span>
+</div>
+<div class="hidden sm:block text-on-surface-variant">Ministry of Petroleum &amp; Natural Gas</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:underline font-medium">English</button>
+<span class="text-border-hairline">|</span>
+<button class="hover:underline font-medium text-on-surface-variant">हिंदी</button>
+</div>
+</div>
+</div>
+<!-- Accessibility Bar -->
+<div class="bg-accessibility-bar text-white px-6 py-1 w-full">
+<div class="max-w-container-max mx-auto flex justify-end items-center text-[11px] gap-4">
+<button class="hover:text-primary-fixed-dim transition-colors">Skip to Content</button>
+<div class="flex items-center gap-2 border-l border-white/20 pl-4">
+<button class="hover:text-primary-fixed-dim transition-colors" title="Decrease Font Size">A-</button>
+<button class="hover:text-primary-fixed-dim transition-colors font-medium" title="Normal Font Size">A</button>
+<button class="hover:text-primary-fixed-dim transition-colors font-bold" title="Increase Font Size">A+</button>
+</div>
+<div class="flex items-center gap-2 border-l border-white/20 pl-4">
+<button class="flex items-center gap-1 hover:text-primary-fixed-dim transition-colors" title="High Contrast">
+<span class="material-symbols-outlined text-[14px]">contrast</span>
+</button>
+</div>
+</div>
+</div>
+<!-- TopNavBar -->
+<header class="bg-background dark:bg-background docked full-width top-0 border-b border-on-surface/15 flat no shadows flex justify-between items-center w-full px-6 py-4 max-w-container-max mx-auto z-40 bg-white">
+<div class="flex items-center gap-8">
+<div class="font-headline-md text-headline-md font-bold text-primary">IOCL | SECURE TENDER SYSTEM</div>
+<nav class="hidden md:flex gap-6">
+<a class="text-on-surface-variant font-medium hover:text-primary transition-colors active:opacity-80 transition-all font-body-md text-body-md" href="#">Dashboard</a>
+<a class="text-on-surface-variant font-medium hover:text-primary transition-colors active:opacity-80 transition-all font-body-md text-body-md" href="#">Active Tenders</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 hover:text-primary transition-colors active:opacity-80 transition-all font-body-md text-body-md" href="#">Awards</a>
+<a class="text-on-surface-variant font-medium hover:text-primary transition-colors active:opacity-80 transition-all font-body-md text-body-md" href="#">Audit Trail</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="font-label-caps text-label-caps border border-outline px-4 py-2 hover:bg-surface-container-highest transition-colors">VENDOR MODE</button>
+<button class="font-label-caps text-label-caps bg-primary text-on-primary px-4 py-2 hover:bg-on-primary-fixed-variant transition-colors">PSU CONSOLE</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden max-w-container-max mx-auto w-full relative">
+<!-- Main Canvas -->
+<main class="flex-1 overflow-y-auto px-6 py-8 md:px-margin">
+<div class="max-w-6xl mx-auto space-y-12">
+<!-- Header Section -->
+<div>
+<div class="flex justify-between items-end mb-6">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-2">TENDER ID: TX-8829-AQ</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Evaluation &amp; Award</h1>
+</div>
+<div class="text-right">
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-1">CURRENT STATUS</div>
+<div class="font-code-md text-code-md text-primary font-bold">REVEALED / EVALUATING</div>
+</div>
+</div>
+<!-- Chain of Custody Strip -->
+<div class="bg-white border border-on-surface/15 p-6 mb-8">
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-4">CHAIN OF CUSTODY TIMELINE</div>
+<div class="flex items-center w-full">
+<!-- Node 1: Initiated -->
+<div class="flex flex-col items-center relative w-1/4">
+<div class="w-2 h-2 bg-on-surface mb-2 z-10"></div>
+<div class="font-label-caps text-label-caps text-on-surface text-center">INITIATED</div>
+<div class="font-code-md text-[10px] text-on-surface-variant mt-1 text-center">2023-10-24 09:00Z</div>
+<div class="absolute top-1 left-1/2 w-full h-[1px] bg-on-surface/15 -z-0"></div>
+</div>
+<!-- Node 2: Bidding Closed -->
+<div class="flex flex-col items-center relative w-1/4">
+<div class="w-2 h-2 bg-on-surface mb-2 z-10"></div>
+<div class="font-label-caps text-label-caps text-on-surface text-center">BIDDING CLOSED</div>
+<div class="font-code-md text-[10px] text-on-surface-variant mt-1 text-center">2023-11-15 17:00Z</div>
+<div class="absolute top-1 left-1/2 w-full h-[1px] bg-on-surface/15 -z-0"></div>
+<div class="absolute top-1 right-1/2 w-full h-[1px] bg-on-surface z-0"></div>
+</div>
+<!-- Node 3: Bids Revealed -->
+<div class="flex flex-col items-center relative w-1/4">
+<div class="w-2 h-2 bg-on-surface mb-2 z-10"></div>
+<div class="font-label-caps text-label-caps text-on-surface text-center">BIDS REVEALED</div>
+<div class="font-code-md text-[10px] text-on-surface-variant mt-1 text-center">2023-11-16 10:00Z</div>
+<div class="absolute top-1 left-1/2 w-full h-[1px] bg-on-surface/15 -z-0"></div>
+<div class="absolute top-1 right-1/2 w-full h-[1px] bg-on-surface z-0"></div>
+</div>
+<!-- Node 4: Evaluation Phase (Current) -->
+<div class="flex flex-col items-center relative w-1/4">
+<div class="w-3 h-3 border-2 border-primary bg-white mb-1.5 z-10 flex items-center justify-center">
+<div class="w-1 h-1 bg-primary"></div>
+</div>
+<div class="font-label-caps text-label-caps text-primary font-bold text-center">EVALUATION PHASE</div>
+<div class="font-code-md text-[10px] text-primary mt-1 text-center">ACTIVE</div>
+<div class="absolute top-1.5 right-1/2 w-full h-[1px] bg-on-surface z-0"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Ledger Table (Bids) -->
+<div>
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Revealed Bids Grid</h2>
+<span class="font-label-caps text-label-caps text-on-surface-variant">SORTED BY: L1 (LOWEST BID)</span>
+</div>
+<div class="bg-white border border-on-surface/15 overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-on-surface text-white">
+<th class="p-3 font-label-caps text-label-caps border-r border-white/20 w-12 text-center">RANK</th>
+<th class="p-3 font-label-caps text-label-caps border-r border-white/20">VENDOR IDENTITY</th>
+<th class="p-3 font-label-caps text-label-caps border-r border-white/20 w-40 text-center">TECH QUALIFICATION</th>
+<th class="p-3 font-label-caps text-label-caps border-r border-white/20 w-64">COMMITMENT HASH</th>
+<th class="p-3 font-label-caps text-label-caps text-right w-40">BID AMOUNT (INR)</th>
+</tr>
+</thead>
+<tbody>
+<!-- Row 1: L1 -->
+<tr class="ledger-row hairline-b">
+<td class="p-3 font-code-md text-code-md text-center bg-surface-container font-bold border-r border-on-surface/15">L1</td>
+<td class="p-3 font-body-md text-body-md border-r border-on-surface/15">
+<div class="font-semibold">Reliance Industries Ltd.</div>
+<div class="font-code-md text-[11px] text-on-surface-variant mt-1">VID: RIL-4492-X</div>
+</td>
+<td class="p-3 border-r border-on-surface/15 text-center">
+<button class="border border-on-surface/15 px-3 py-1 text-xs font-label-caps hover:bg-surface-container flex items-center justify-center gap-1 mx-auto">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                                            PENDING
+                                        </button>
+</td>
+<td class="p-3 font-code-md text-[11px] text-on-surface-variant border-r border-on-surface/15 break-all">
+<span class="text-on-surface font-semibold">0x8f2a...</span>9b4e1c2d3f4a5b6c7d8e9f0a1b2c3d4e
+                                    </td>
+<td class="p-3 font-code-md text-code-md text-right font-bold">
+                                        ₹ 45,20,00,000
+                                    </td>
+</tr>
+<!-- Row 2: L2 -->
+<tr class="ledger-row hairline-b">
+<td class="p-3 font-code-md text-code-md text-center border-r border-on-surface/15">L2</td>
+<td class="p-3 font-body-md text-body-md border-r border-on-surface/15">
+<div class="font-semibold">Larsen &amp; Toubro</div>
+<div class="font-code-md text-[11px] text-on-surface-variant mt-1">VID: LT-8821-Y</div>
+</td>
+<td class="p-3 border-r border-on-surface/15 text-center">
+<div class="px-3 py-1 text-xs font-label-caps flex items-center justify-center gap-1">
+<span class="w-2 h-2 rounded-full bg-green-700"></span>
+                                            QUALIFIED
+                                        </div>
+</td>
+<td class="p-3 font-code-md text-[11px] text-on-surface-variant border-r border-on-surface/15 break-all">
+<span class="text-on-surface font-semibold">0x3c1b...</span>4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a
+                                    </td>
+<td class="p-3 font-code-md text-code-md text-right">
+                                        ₹ 46,85,50,000
+                                    </td>
+</tr>
+<!-- Row 3: L3 -->
+<tr class="ledger-row hairline-b">
+<td class="p-3 font-code-md text-code-md text-center border-r border-on-surface/15">L3</td>
+<td class="p-3 font-body-md text-body-md border-r border-on-surface/15">
+<div class="font-semibold">Tata Projects</div>
+<div class="font-code-md text-[11px] text-on-surface-variant mt-1">VID: TP-1102-Z</div>
+</td>
+<td class="p-3 border-r border-on-surface/15 text-center">
+<button class="border border-on-surface/15 px-3 py-1 text-xs font-label-caps hover:bg-surface-container flex items-center justify-center gap-1 mx-auto">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                                            PENDING
+                                        </button>
+</td>
+<td class="p-3 font-code-md text-[11px] text-on-surface-variant border-r border-on-surface/15 break-all">
+<span class="text-on-surface font-semibold">0x7d9f...</span>1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+                                    </td>
+<td class="p-3 font-code-md text-code-md text-right">
+                                        ₹ 48,00,00,000
+                                    </td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Award Action Area -->
+<div class="bg-surface-container-lowest border border-on-surface/15 p-8 flex flex-col items-center justify-center">
+<div class="text-center max-w-md mb-6">
+<span class="material-symbols-outlined text-4xl text-on-surface-variant mb-2" style="font-variation-settings: 'FILL' 0;">gavel</span>
+<h3 class="font-headline-sm text-headline-sm font-bold mb-2">Finalize Tender Award</h3>
+<p class="font-body-sm text-sm text-on-surface-variant">Select a vendor from the grid above, ensure technical qualification is complete, and proceed with the official award execution. This action is immutable.</p>
+</div>
+<button class="btn-award font-label-caps text-label-caps px-8 py-4 flex items-center gap-2 tracking-widest cursor-not-allowed opacity-75" disabled="" title="Technical qualification pending for selected vendor">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">lock</span>
+                        AWARD TENDER TO L1
+                    </button>
+<div class="font-code-md text-[11px] text-error mt-4">System Notice: Technical qualification pending for L1. Cannot execute award.</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Footer -->
+<footer class="bg-background dark:bg-background docked full-width bottom-0 border-t border-on-surface/15 flat no shadows flex flex-col w-full bg-white z-40">
+<div class="flex justify-between items-center px-6 py-3 border-b border-on-surface/5">
+<div class="font-code-md text-[11px] text-on-surface-variant uppercase">
+            System Log: 14:02:11Z - Bid successfully revealed. Hash verification: MATCH.
+        </div>
+<div class="font-code-md text-[11px] text-on-surface-variant uppercase flex gap-4">
+<span>Officer ID: OP-992-K</span>
+<span>Ref No: REQ-449-11</span>
+</div>
+</div>
+<div class="flex flex-col md:flex-row justify-between items-center px-6 py-4 gap-4">
+<div class="font-body-md text-xs text-on-surface-variant">
+<div class="font-bold mb-1">© 2024 INDIAN OIL CORPORATION LTD. SECURE LEDGER PROTOCOL V2.4</div>
+<div>Content owned by Ministry of Petroleum &amp; Natural Gas | Site last updated: 2024</div>
+</div>
+<div class="flex flex-wrap gap-4 md:gap-6 font-label-caps text-label-caps text-on-surface-variant">
+<a class="hover:underline hover:text-primary transition-colors" href="#">Security Policy</a>
+<a class="hover:underline hover:text-primary transition-colors" href="#">Technical Specs</a>
+<a class="hover:underline hover:text-primary transition-colors" href="#">Support</a>
+<a class="hover:underline hover:text-primary transition-colors" href="#">CVC Grievance Portal</a>
+</div>
+</div>
+</footer>
+</body></html>
