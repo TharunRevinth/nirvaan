@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F2EFE9;
+    color: #1C1F26;
+    font-family: 'Noto Sans', sans-serif;
+  }
+
+  /* Visible focus outlines for keyboard navigation accessibility */
+  *:focus-visible {
+    outline: 2px solid #B5541A;
+    outline-offset: 2px;
+  }
+}
+
+/* Custom hairline borders and zero radius enforcement */
+.hairline-border {
+  border: 1px solid rgba(28, 31, 38, 0.15);
+}
+
+.amber-flash {
+  animation: amberFlash 2s infinite;
+}
+
+@keyframes amberFlash {
+  0%, 100% { color: #C99A3E; opacity: 1; }
+  50% { color: #C99A3E; opacity: 0.6; }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F2EFE9;
+}
+::-webkit-scrollbar-thumb {
+  background: #3D5A73;
+}

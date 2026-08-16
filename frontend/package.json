@@ -1,25 +1,27 @@
 {
-  "name": "oil-e-tendering-nextjs",
-  "version": "1.0.0",
+  "name": "oil-psu-e-tendering-frontend",
   "private": true,
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "vite --port 3000 --host",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "ethers": "^6.17.0",
-    "lucide-react": "^0.395.0",
-    "next": "^14.2.5",
+    "ethers": "^6.13.2",
+    "lucide-react": "^0.427.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
   },
   "devDependencies": {
-    "@tailwindcss/container-queries": "^0.1.1",
-    "@tailwindcss/forms": "^0.5.11",
-    "autoprefixer": "^10.5.4",
-    "postcss": "^8.5.26",
-    "tailwindcss": "^3.4.19"
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "vite": "^5.4.1"
   }
 }
