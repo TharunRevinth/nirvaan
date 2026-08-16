@@ -1,0 +1,13 @@
+{
+  "name": "oil-e-tendering-keeper",
+  "version": "1.0.0",
+  "description": "Automated Oracle Keeper service for time-triggered bid opening & tender finalization",
+  "main": "keeper.js",
+  "scripts": {
+    "start": "node keeper.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0"
+  }
+}
