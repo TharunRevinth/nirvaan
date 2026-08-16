@@ -1,33 +1,36 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ portalRole, selectedPSU }) {
+export default function Sidebar() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { officerUser, walletAddress, selectedPSU } = useAuth();
 
-  // Separate Link Navigation Sets for PSU vs. Vendor
+  const isOfficer = Boolean(officerUser);
+
+  // Link sets scoped strictly to role
   const psuLinks = [
-    { label: 'Active Tender Ledger', path: '/tenders' },
-    { label: 'Notice Inviting Tender (NIT)', path: '/create-tender' },
-    { label: 'Bid Evaluation & Award', path: '/evaluation' },
-    { label: 'Dispute & Grievance Reviews', path: '/tenders/TND-24-9982-A' },
+    { label: 'Active Tender Register', path: '/psu/dashboard' },
+    { label: 'Notice Inviting Tender (NIT)', path: '/psu/create-tender' },
+    { label: 'Bid Evaluation & Award', path: '/psu/evaluation' },
   ];
 
   const vendorLinks = [
-    { label: 'Tender Browse', path: '/tenders' },
-    { label: 'Vendor KYC Registration', path: '/register' },
-    { label: 'Sealed Bid Submission', path: '/submit-bid' },
-    { label: 'Dispute Filing', path: '/dispute' },
+    { label: 'Tender Browse', path: '/vendor/dashboard' },
+    { label: 'Corporate KYC Registration', path: '/vendor/kyc' },
+    { label: 'Sealed Bid Submission', path: '/vendor/submit-bid' },
+    { label: 'Dispute Filing', path: '/vendor/dispute' },
   ];
 
-  const activeLinks = portalRole === 'PSU' ? psuLinks : vendorLinks;
+  const activeLinks = isOfficer ? psuLinks : vendorLinks;
 
   return (
     <>
       {/* Mobile Hamburger Header */}
       <div className="md:hidden bg-graphite text-white px-4 py-2 flex justify-between items-center border-b border-graphite/20">
         <span className="font-bold text-xs">
-          {portalRole === 'PSU' ? `PSU OFFICER PORTAL (${selectedPSU})` : 'VENDOR PROCUREMENT PORTAL'}
+          {isOfficer ? `PSU OFFICER PORTAL (${selectedPSU})` : 'VENDOR BIDDING PORTAL'}
         </span>
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -40,31 +43,31 @@ export default function Sidebar({ portalRole, selectedPSU }) {
 
       {/* Main Sidebar Container */}
       <aside className={`${mobileMenuOpen ? 'block' : 'hidden'} md:block w-64 bg-white border-r border-graphite/15 shrink-0 z-30`}>
-        {/* Officer / Vendor Badge Header */}
+        {/* Header Badge */}
         <div className="p-5 border-b border-graphite/15 bg-offwhite/50">
           <div className="text-[11px] font-bold text-slate uppercase tracking-wider mb-1">
-            {portalRole === 'PSU' ? 'Authorized Entity' : 'Registered Vendor'}
+            {isOfficer ? 'Authorized PSU Entity' : 'Registered Vendor Entity'}
           </div>
           <h2 className="font-bold text-base text-graphite">
-            {portalRole === 'PSU' ? `${selectedPSU} Procurement Cell` : 'Registered Supplier'}
+            {isOfficer ? `${selectedPSU} Procurement Cell` : 'Commercial Supplier'}
           </h2>
           <p className="font-mono text-xs text-graphite/70 mt-1">
-            {portalRole === 'PSU' ? 'Officer ID: 88-X92-IOC' : 'GSTIN: 27AAAAA0000A1Z5'}
+            {isOfficer ? `Officer ID: ${officerUser.officerId}` : walletAddress ? `Wallet: ${walletAddress.substring(0, 8)}...` : 'Not Connected'}
           </p>
         </div>
 
         {/* Primary Action CTA Button */}
         <div className="p-4 border-b border-graphite/15">
-          {portalRole === 'PSU' ? (
+          {isOfficer ? (
             <Link 
-              to="/create-tender"
+              to="/psu/create-tender"
               className="w-full bg-copper text-white font-bold text-xs py-2.5 px-3 flex items-center justify-center gap-2 hover:bg-copper-hover transition-colors border border-copper block text-center"
             >
               + Create New NIT Specification
             </Link>
           ) : (
             <Link 
-              to="/submit-bid"
+              to="/vendor/submit-bid"
               className="w-full bg-slate text-white font-bold text-xs py-2.5 px-3 flex items-center justify-center gap-2 hover:bg-slate/90 transition-colors border border-slate block text-center"
             >
               🔒 Submit Sealed Bid
@@ -72,7 +75,7 @@ export default function Sidebar({ portalRole, selectedPSU }) {
           )}
         </div>
 
-        {/* Reused Navigation List */}
+        {/* Navigation List */}
         <nav className="py-3">
           <ul className="flex flex-col">
             {activeLinks.map((link) => {
@@ -96,11 +99,11 @@ export default function Sidebar({ portalRole, selectedPSU }) {
           </ul>
         </nav>
 
-        {/* Government Portal Support Footer Box */}
+        {/* Support Box */}
         <div className="p-4 border-t border-graphite/15 mt-8 bg-offwhite/30 text-[11px] text-graphite/70">
           <div className="font-bold text-graphite mb-1">CVC Vigilance Helpdesk</div>
           <p className="leading-tight">Integrity Helpline: 1800-11-2024</p>
-          <p className="font-mono text-[10px] mt-1 text-slate">Nodes Active: 7/7 (QBFT)</p>
+          <p className="font-mono text-[10px] mt-1 text-slate">Consortium Nodes: 7/7 (QBFT)</p>
         </div>
       </aside>
     </>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import GovIdentityStrip from './components/GovIdentityStrip';
 import AccessibilityBar from './components/AccessibilityBar';
 import TopBar from './components/TopBar';
@@ -7,7 +9,7 @@ import Sidebar from './components/Sidebar';
 import GovFooter from './components/GovFooter';
 import Toast from './components/Toast';
 
-import Login from './pages/Login';
+import Landing from './pages/Landing';
 import VendorRegistration from './pages/VendorRegistration';
 import TenderBrowse from './pages/TenderBrowse';
 import TenderDetail from './pages/TenderDetail';
@@ -17,9 +19,6 @@ import TenderCreation from './pages/TenderCreation';
 import EvaluationAward from './pages/EvaluationAward';
 
 export default function App() {
-  const [selectedPSU, setSelectedPSU] = useState('IOCL');
-  const [portalRole, setPortalRole] = useState('PSU'); // 'PSU' | 'Vendor'
-  const [walletAddress, setWalletAddress] = useState('0xfe3b2075775791234567890abcdef1234567bd73');
   const [toast, setToast] = useState(null);
 
   const triggerToast = (message, type = 'success') => {
@@ -27,7 +26,7 @@ export default function App() {
     setTimeout(() => setToast(null), 5000);
   };
 
-  // Shared Tenders Initial State
+  // Shared Tenders Initial Data
   const [tenders, setTenders] = useState([
     {
       id: 'TND-24-9982-A',
@@ -36,8 +35,11 @@ export default function App() {
       title: 'Expansion of Offshore Pipeline Routing & Actuator Valves',
       desc: 'High-pressure offshore subsea pipeline valve procurement and commissioning for Refinery Sector 4B.',
       valueCr: '45.50',
-      emd: '910,000 INR',
+      minEmdAmount: 500000,
+      emd: '500,000 INR',
       deadline: '2026-11-15 18:00',
+      isExpired: false,
+      appealWindowClosed: false,
       status: 'OPEN',
       cid: 'QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco'
     },
@@ -46,10 +48,13 @@ export default function App() {
       psu: 'ONGC',
       category: 'Heavy Machinery',
       title: 'Procurement of 15 Industrial Deepwater Drilling Rigs',
-      desc: 'Offshore deepwater exploratory drilling rig fleet expansion for Krishna Godavari basin operations.',
+      desc: 'Offshore deepwater exploratory drilling rig fleet expansion for KG basin operations.',
       valueCr: '120.00',
+      minEmdAmount: 2400000,
       emd: '2,400,000 INR',
       deadline: '12:45:10',
+      isExpired: false,
+      appealWindowClosed: false,
       status: 'CLOSING SOON',
       cid: 'QmYwAPJzv5CZsnA625s3Xf2sm5DyaRtPu85X61mWO6uco'
     },
@@ -58,126 +63,115 @@ export default function App() {
       psu: 'IOCL',
       category: 'Consulting',
       title: 'Refinery Environmental Safety Audit & Compliance Q4',
-      desc: 'Third-party environmental audit and hazard identification for Mathura and Koyali refineries.',
+      desc: 'Third-party environmental audit for Mathura and Koyali refineries.',
       valueCr: '2.75',
+      minEmdAmount: 55000,
       emd: '55,000 INR',
-      deadline: '2026-11-20 12:00',
-      status: 'OPEN',
+      deadline: '2026-01-10 12:00 (EXPIRED)',
+      isExpired: true,
+      appealWindowClosed: true,
+      status: 'EXPIRED',
       cid: 'QmZtrL359vC2V7xW981smL2vedxjQkDDP1mXWo6uco'
-    },
-    {
-      id: 'TND-24-9985-D',
-      psu: 'BPCL',
-      category: 'IT Infrastructure',
-      title: 'High-Availability Data Center Server Cluster Upgrade',
-      desc: 'Enterprise cloud infrastructure and private ledger node server hardware expansion.',
-      valueCr: '18.20',
-      emd: '364,000 INR',
-      deadline: '38:15:00',
-      status: 'CLOSING SOON',
-      cid: 'QmB21xM99vC2V7xW981smL2vedxjQkDDP1mXWo6uco'
     }
   ]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-offwhite text-graphite font-sans antialiased">
-      {/* 1. National Identity Strip */}
-      <GovIdentityStrip />
+    <AuthProvider>
+      <div className="min-h-screen flex flex-col bg-offwhite text-graphite font-sans antialiased">
+        {/* 1. National Identity Strip */}
+        <GovIdentityStrip />
 
-      {/* 2. Accessibility Bar */}
-      <AccessibilityBar />
+        {/* 2. Accessibility Bar */}
+        <AccessibilityBar />
 
-      {/* 3. Main Header TopBar */}
-      <TopBar 
-        selectedPSU={selectedPSU}
-        setSelectedPSU={setSelectedPSU}
-        portalRole={portalRole}
-        setPortalRole={setPortalRole}
-        walletAddress={walletAddress}
-        setWalletAddress={setWalletAddress}
-      />
+        {/* 3. Main Header TopBar */}
+        <TopBar />
 
-      {/* 4. Layout Canvas with Sidebar + Page Content */}
-      <div className="flex flex-1 max-w-container-max mx-auto w-full relative">
-        <Sidebar portalRole={portalRole} selectedPSU={selectedPSU} />
+        {/* 4. Canvas with Sidebar + Guarded Routes */}
+        <div className="flex flex-1 max-w-container-max mx-auto w-full relative">
+          <Sidebar />
 
-        <main className="flex-1 p-6 overflow-y-auto">
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                <Login 
-                  setPortalRole={setPortalRole} 
-                  walletAddress={walletAddress} 
-                  setWalletAddress={setWalletAddress} 
-                />
-              } 
-            />
-            <Route 
-              path="/tenders" 
-              element={
-                <TenderBrowse 
-                  tenders={tenders} 
-                  selectedPSU={selectedPSU} 
-                  setSelectedPSU={setSelectedPSU} 
-                />
-              } 
-            />
-            <Route 
-              path="/tenders/:id" 
-              element={<TenderDetail tenders={tenders} />} 
-            />
-            <Route 
-              path="/register" 
-              element={
-                <VendorRegistration 
-                  walletAddress={walletAddress} 
-                  triggerToast={triggerToast} 
-                />
-              } 
-            />
-            <Route 
-              path="/submit-bid" 
-              element={
-                <SealedBidSubmission 
-                  triggerToast={triggerToast} 
-                  walletAddress={walletAddress} 
-                />
-              } 
-            />
-            <Route 
-              path="/dispute" 
-              element={<DisputeFiling triggerToast={triggerToast} />} 
-            />
-            <Route 
-              path="/create-tender" 
-              element={
-                <TenderCreation 
-                  selectedPSU={selectedPSU} 
-                  triggerToast={triggerToast} 
-                  setTenders={setTenders} 
-                  tenders={tenders} 
-                />
-              } 
-            />
-            <Route 
-              path="/evaluation" 
-              element={
-                <EvaluationAward 
-                  triggerToast={triggerToast} 
-                  selectedPSU={selectedPSU} 
-                />
-              } 
-            />
-          </Routes>
-        </main>
+          <main className="flex-1 p-6 overflow-y-auto">
+            <Routes>
+              {/* Public Entry Point Landing Page */}
+              <Route path="/" element={<Landing triggerToast={triggerToast} />} />
+
+              {/* Vendor Routes (Protected for Vendor Sessions) */}
+              <Route 
+                path="/vendor/dashboard" 
+                element={
+                  <ProtectedRoute allowedRole="Vendor" triggerToast={triggerToast}>
+                    <TenderBrowse tenders={tenders} selectedPSU="ALL" setSelectedPSU={() => {}} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/vendor/kyc" 
+                element={
+                  <ProtectedRoute allowedRole="Vendor" triggerToast={triggerToast}>
+                    <VendorRegistration triggerToast={triggerToast} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/vendor/submit-bid" 
+                element={
+                  <ProtectedRoute allowedRole="Vendor" requiresRegistration={true} triggerToast={triggerToast}>
+                    <SealedBidSubmission triggerToast={triggerToast} tenders={tenders} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/vendor/dispute" 
+                element={
+                  <ProtectedRoute allowedRole="Vendor" requiresRegistration={true} triggerToast={triggerToast}>
+                    <DisputeFiling triggerToast={triggerToast} tenders={tenders} />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* PSU Officer Routes (Protected for PSU Officer JWT Sessions) */}
+              <Route 
+                path="/psu/dashboard" 
+                element={
+                  <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
+                    <TenderBrowse tenders={tenders} selectedPSU="ALL" setSelectedPSU={() => {}} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/psu/create-tender" 
+                element={
+                  <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
+                    <TenderCreation triggerToast={triggerToast} setTenders={setTenders} tenders={tenders} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/psu/evaluation" 
+                element={
+                  <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
+                    <EvaluationAward triggerToast={triggerToast} />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* Shared Tender Detail Page */}
+              <Route path="/tenders/:id" element={<TenderDetail tenders={tenders} />} />
+              <Route path="/tenders" element={<Navigate to="/vendor/dashboard" replace />} />
+
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
+
+        {/* 5. Government Footer */}
+        <GovFooter />
+
+        {/* 6. Toast Notification Banner */}
+        <Toast toast={toast} onClose={() => setToast(null)} />
       </div>
-
-      {/* 5. Government Footer */}
-      <GovFooter />
-
-      {/* 6. Notification Toast Banner */}
-      <Toast toast={toast} onClose={() => setToast(null)} />
-    </div>
+    </AuthProvider>
   );
 }

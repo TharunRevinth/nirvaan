@@ -1,20 +1,44 @@
 import React, { useState } from 'react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { useAuth } from '../context/AuthContext';
 
-export default function DisputeFiling({ triggerToast }) {
-  const [tenderRef, setTenderRef] = useState('TND-24-9982-A');
+export default function DisputeFiling({ triggerToast, tenders = [] }) {
+  const { walletAddress } = useAuth();
+  const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
   const [reason, setReason] = useState('Technical Specification Exclusion');
   const [description, setDescription] = useState('');
-  const [bondAmount, setBondAmount] = useState('100,000');
+  const [bondAmount] = useState('100,000');
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
+
+  // Winning vendor address mock check
+  const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732'; // Reliance Offshore Ltd
+  const isWinningVendor = walletAddress?.toLowerCase() === winningVendorAddress.toLowerCase();
+
+  const handlePreSubmitValidation = () => {
+    // 1. Check if Winning Vendor
+    if (isWinningVendor) {
+      triggerToast('Ineligible: Winning bidders awarded contracts cannot file disputes against their own award.', 'error');
+      return;
+    }
+
+    // 2. Check if Appeal Window Closed
+    if (currentTender.appealWindowClosed) {
+      triggerToast(`Dispute Window Closed: The 7-day statutory appeal window for Tender ${currentTender.id} has expired. Appeals can no longer be accepted on-chain.`, 'error');
+      return;
+    }
+
+    setModalOpen(true);
+  };
 
   const handleSubmit = () => {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Formal Dispute filed on-chain for ${tenderRef}. Dispute Bond of ₹${bondAmount} locked in escrow smart contract.`, 'success');
+      triggerToast(`Formal Dispute filed on-chain for ${selectedTenderId}. Dispute Bond of ₹${bondAmount} locked in escrow smart contract.`, 'success');
     }, 1800);
   };
 
@@ -33,13 +57,21 @@ export default function DisputeFiling({ triggerToast }) {
           </p>
         </div>
         <div className="text-right">
-          <div className="text-[10px] font-bold text-slate uppercase">Appeal Window Remaining:</div>
-          <div className="font-mono text-sm font-bold text-amber amber-flash">⏳ 06 Days 14 Hours</div>
+          <div className="text-[10px] font-bold text-slate uppercase">Appeal Window Status:</div>
+          <div className={`font-mono text-xs font-bold ${currentTender.appealWindowClosed ? 'text-red-700 font-bold' : 'text-amber amber-flash'}`}>
+            {currentTender.appealWindowClosed ? 'EXPIRED (CLOSED)' : '⏳ 06 Days 14 Hours Remaining'}
+          </div>
         </div>
       </div>
 
+      {isWinningVendor && (
+        <div className="bg-red-50 border border-red-300 p-4 text-xs text-red-900 font-bold">
+          🚫 Ineligible to Dispute: Your wallet address is registered as the awarded L1 Winner for this contract. Winning vendors cannot appeal their own awarded contracts.
+        </div>
+      )}
+
       <div className="bg-white border-l-4 border-copper p-4 text-xs space-y-1.5 hairline-border">
-        <h3 className="font-bold text-graphite uppercase">Dispute Mechanism Notice</h3>
+        <h3 className="font-bold text-graphite uppercase">Dispute Escrow Mechanism Notice</h3>
         <p className="text-graphite/80 leading-relaxed">
           Filing a formal dispute triggers an automated 7-day hold on tender finalization on the smart contract. A mandatory Dispute Bond of ₹1,00,000 must be locked in the CVC Resolution Escrow. Frivolous disputes will result in bond forfeiture.
         </p>
@@ -50,13 +82,17 @@ export default function DisputeFiling({ triggerToast }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-graphite">TARGET TENDER REFERENCE ID *</label>
-              <input
-                type="text"
-                required
-                value={tenderRef}
-                onChange={(e) => setTenderRef(e.target.value)}
-                className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs font-mono text-graphite"
-              />
+              <select
+                value={selectedTenderId}
+                onChange={(e) => setSelectedTenderId(e.target.value)}
+                className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite font-bold cursor-pointer"
+              >
+                {tenders.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.id} — {t.title} ({t.appealWindowClosed ? 'APPEAL CLOSED' : 'APPEAL OPEN'})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-1">
@@ -86,13 +122,6 @@ export default function DisputeFiling({ triggerToast }) {
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-graphite">SUPPORTING EVIDENTIARY DOSSIER (PDF)</label>
-            <div className="border border-dashed border-graphite/30 bg-offwhite p-4 text-center">
-              <p className="text-xs text-graphite">Drag & drop signed representation dossier here</p>
-            </div>
-          </div>
-
           <div className="bg-offwhite p-4 border border-graphite/15 flex justify-between items-center text-xs">
             <div>
               <span className="font-bold text-graphite block">Mandatory Dispute Bond Escrow:</span>
@@ -105,8 +134,8 @@ export default function DisputeFiling({ triggerToast }) {
         <div className="pt-4 border-t border-graphite/15 flex justify-end">
           <button
             type="button"
-            onClick={() => setModalOpen(true)}
-            disabled={!description}
+            onClick={handlePreSubmitValidation}
+            disabled={!description || currentTender.appealWindowClosed || isWinningVendor}
             className="bg-copper text-white font-bold text-xs px-6 py-3 hover:bg-copper-hover disabled:opacity-50 transition-colors uppercase"
           >
             File Dispute & Lock Bond On-Chain →
@@ -117,7 +146,7 @@ export default function DisputeFiling({ triggerToast }) {
       <ConfirmationModal
         isOpen={modalOpen}
         title="Confirm Statutory Dispute Filing"
-        message={`Are you sure you want to file a formal dispute against ${tenderRef} and lock ₹${bondAmount} in smart contract escrow?`}
+        message={`Are you sure you want to file a formal dispute against ${selectedTenderId} and lock ₹${bondAmount} in smart contract escrow?`}
         onConfirm={handleSubmit}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}
