@@ -11,18 +11,72 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
   const [opening, setOpening] = useState('2026-12-02 10:00');
   const [emd, setEmd] = useState('500000');
   const [budget, setBudget] = useState('45000000');
-  const [ipfsCid, setIpfsCid] = useState('QmYwAPJzv5CZsnA625s3Xf2sm5DyaRtPu8...1A2B');
+  const [ipfsCid, setIpfsCid] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  const handleIpfsFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setSelectedFileName(file.name);
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('http://127.0.0.1:5001/api/v0/add', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error(`IPFS upload failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      setIpfsCid(data.Hash);
+      triggerToast(`File uploaded to IPFS. Real CID: ${data.Hash}`, 'success');
+    } catch (err) {
+      console.error('IPFS upload error:', err);
+      triggerToast(`IPFS Upload failed: ${err.message}`, 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
   
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const token = localStorage.getItem('officer_token');
+
+      const res = await fetch('http://localhost:5000/api/tenders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          ipfsHash: ipfsCid,
+          submissionDeadline: deadline,
+          openingTime: opening,
+          minEMD: (Number(emd) / 10**18).toString() || "0.1" // converted for contract standard
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Tender creation failed on relay server.');
+      }
+
       setIsSubmitting(false);
       setModalOpen(false);
 
-      const newId = `TND-26-${Math.floor(1000 + Math.random() * 9000)}-N`;
+      const newId = `TND-26-${data.tenderId}-N`;
       const newTenderObj = {
         id: newId,
         psu: selectedPSU,
@@ -34,13 +88,19 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
         deadline,
         opening,
         status: 'OPEN',
-        cid: ipfsCid
+        cid: ipfsCid,
+        txHash: data.txHash
       };
 
       setTenders([newTenderObj, ...tenders]);
-      triggerToast(`Notice Inviting Tender ${newId} published on-chain with IPFS CID ${ipfsCid.substring(0, 16)}...`, 'success');
+      triggerToast(`Notice Inviting Tender published on-chain! Tx Hash: ${data.txHash.substring(0, 18)}...`, 'success');
       navigate('/tenders');
-    }, 1800);
+    } catch (err) {
+      setIsSubmitting(false);
+      setModalOpen(false);
+      console.error("Tender creation error:", err);
+      triggerToast(err.message, 'error');
+    }
   };
 
   return (
@@ -151,21 +211,42 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
 
         {/* IPFS Upload Box */}
         <div className="space-y-2">
-          <label className="text-xs font-bold text-graphite">SPECIFICATION DOCUMENTATION (IPFS ANCHOR)</label>
-          <div className="border border-dashed border-graphite/30 bg-offwhite p-4 text-center">
-            <p className="text-xs text-graphite">Specification file uploaded to IPFS decentralized storage</p>
+          <label className="text-xs font-bold text-graphite">SPECIFICATION DOCUMENTATION (REAL IPFS ANCHOR)</label>
+          <div className="border border-dashed border-graphite/30 bg-offwhite p-4 text-center space-y-2">
+            <input 
+              type="file" 
+              id="ipfs-file-input"
+              accept=".pdf,.doc,.docx,.txt"
+              onChange={handleIpfsFileUpload}
+              className="hidden" 
+            />
+            <label 
+              htmlFor="ipfs-file-input"
+              className="cursor-pointer inline-block bg-graphite text-white px-4 py-2 text-xs font-bold hover:bg-slate transition-colors"
+            >
+              {isUploading ? 'Uploading to IPFS...' : 'Select Specification Document (PDF)'}
+            </label>
+            {selectedFileName && (
+              <p className="text-xs text-graphite font-medium">Selected: {selectedFileName}</p>
+            )}
           </div>
-          <div className="bg-slate/10 p-3 border border-slate/20 text-xs font-mono text-slate flex justify-between items-center">
-            <span>GENERATED IPFS CID: <strong className="text-copper">{ipfsCid}</strong></span>
-            <span className="text-emerald-700 font-bold">[VERIFIED]</span>
-          </div>
+          {ipfsCid ? (
+            <div className="bg-slate/10 p-3 border border-slate/20 text-xs font-mono text-slate flex justify-between items-center">
+              <span>REAL IPFS CID: <strong className="text-copper font-bold select-all">{ipfsCid}</strong></span>
+              <span className="text-emerald-700 font-bold">[STORED ON LOCAL KUBO IPFS]</span>
+            </div>
+          ) : (
+            <div className="bg-amber/10 p-2.5 border border-amber/30 text-xs font-mono text-amber">
+              ⚠️ Please upload a specification PDF to generate a real IPFS CID before publishing on-chain.
+            </div>
+          )}
         </div>
 
         <div className="pt-4 border-t border-graphite/15 flex justify-end gap-3">
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            disabled={!title}
+            disabled={!title || !ipfsCid}
             className="bg-copper text-white font-bold text-xs px-6 py-3 hover:bg-copper-hover disabled:opacity-50 transition-colors uppercase"
           >
             Publish NIT & Sign On-Chain →

@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import GovIdentityStrip from './components/GovIdentityStrip';
-import AccessibilityBar from './components/AccessibilityBar';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import GovFooter from './components/GovFooter';
@@ -78,13 +76,7 @@ export default function App() {
   return (
     <AuthProvider>
       <div className="min-h-screen flex flex-col bg-offwhite text-graphite font-sans antialiased">
-        {/* 1. National Identity Strip */}
-        <GovIdentityStrip />
-
-        {/* 2. Accessibility Bar */}
-        <AccessibilityBar />
-
-        {/* 3. Main Header TopBar */}
+        {/* 1. Main Header TopBar */}
         <TopBar />
 
         {/* 4. Canvas with Sidebar + Guarded Routes */}

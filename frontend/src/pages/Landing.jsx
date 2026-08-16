@@ -7,8 +7,8 @@ export default function Landing({ triggerToast }) {
   const { connectVendorWallet, isVendorRegistered, loginOfficerSession } = useAuth();
 
   // Officer Form State
-  const [username, setUsername] = useState('iocl_officer');
-  const [password, setPassword] = useState('TempOfficerPassword123!');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Password Change State for first-time login

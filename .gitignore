@@ -38,6 +38,8 @@ docker/ipfs-data/
 *.sw?
 .idea/
 .vscode/
-*.md
-docs/
 
+# Documentation
+docs/
+PROJECT_ARCHITECTURE_AND_PROGRESS.md
+*.md

@@ -54,6 +54,41 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     setModalOpen(true);
   };
 
+  const [bidDocumentCid, setBidDocumentCid] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState('');
+
+  const handleIpfsBidFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setSelectedFileName(file.name);
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('http://127.0.0.1:5001/api/v0/add', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error(`IPFS upload failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      setBidDocumentCid(data.Hash);
+      triggerToast(`Bid document uploaded to IPFS. Real CID: ${data.Hash}`, 'success');
+    } catch (err) {
+      console.error('IPFS bid upload error:', err);
+      triggerToast(`IPFS Upload failed: ${err.message}`, 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Real MetaMask On-Chain Transaction Execution
   const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
@@ -63,6 +98,10 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     try {
       if (!window.ethereum) {
         throw new Error("MetaMask is not installed.");
+      }
+
+      if (!bidDocumentCid) {
+        throw new Error("Please upload an encrypted bid document PDF to IPFS first.");
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -76,11 +115,11 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
 
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
 
-      // Call real submitBid function on smart contract
+      // Call real submitBid function on smart contract with real IPFS CID
       const emdWei = ethers.parseEther(emdDeposited || "0.1");
       const tx = await contract.submitBid(
         1, // Tender ID 1
-        "QmEncryptedBidDocumentIpfsHash_12345",
+        bidDocumentCid,
         commitmentHash,
         { value: emdWei }
       );
@@ -179,6 +218,38 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs font-bold text-graphite">ENCRYPTED BID DOCUMENT (REAL IPFS ANCHOR) *</label>
+            <div className="border border-dashed border-graphite/30 bg-offwhite p-3 text-center space-y-2">
+              <input 
+                type="file" 
+                id="bid-ipfs-file-input"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleIpfsBidFileUpload}
+                className="hidden" 
+              />
+              <label 
+                htmlFor="bid-ipfs-file-input"
+                className="cursor-pointer inline-block bg-graphite text-white px-3 py-1.5 text-xs font-bold hover:bg-slate transition-colors"
+              >
+                {isUploading ? 'Uploading to IPFS...' : 'Select Encrypted Bid PDF'}
+              </label>
+              {selectedFileName && (
+                <p className="text-xs text-graphite font-medium">Selected: {selectedFileName}</p>
+              )}
+            </div>
+            {bidDocumentCid ? (
+              <div className="bg-slate/10 p-2 border border-slate/20 text-xs font-mono text-slate flex justify-between items-center">
+                <span>CID: <strong className="text-copper font-bold select-all">{bidDocumentCid}</strong></span>
+                <span className="text-emerald-700 font-bold">[READY]</span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-amber font-mono">
+                ⚠️ Upload bid PDF to generate real IPFS CID before submitting.
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1">
             <div className="flex justify-between items-center">
               <label className="text-xs font-bold text-graphite">SECRET SALT STRING *</label>
               <button
@@ -213,7 +284,7 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
 
           <button
             onClick={handlePreSubmitValidation}
-            disabled={!commitmentHash || !walletAddress}
+            disabled={!commitmentHash || !walletAddress || !bidDocumentCid}
             className="w-full bg-copper text-white font-bold text-xs py-3.5 hover:bg-copper-hover disabled:opacity-50 transition-colors uppercase"
           >
             Submit Sealed Bid via MetaMask →

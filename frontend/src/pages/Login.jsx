@@ -37,7 +37,7 @@ export default function Login({ setPortalRole, walletAddress, setWalletAddress }
         <div className="bg-white border-2 border-graphite p-6 space-y-6">
           <div className="border-b border-graphite/15 pb-3">
             <h2 className="font-bold text-sm text-graphite uppercase tracking-wider flex items-center gap-2">
-              <span>🏢</span> PSU Authorized Officer Login
+              <span></span> PSU Authorized Officer Login
             </h2>
             <p className="text-[11px] text-slate mt-0.5">
               For IOCL, HPCL, BPCL, ONGC, and GAIL Procurement Officers
@@ -88,7 +88,7 @@ export default function Login({ setPortalRole, walletAddress, setWalletAddress }
         <div className="bg-white border-2 border-copper p-6 space-y-6">
           <div className="border-b border-graphite/15 pb-3">
             <h2 className="font-bold text-sm text-copper uppercase tracking-wider flex items-center gap-2">
-              <span>🔑</span> Vendor Class-3 Web3 Wallet Authentication
+              <span></span> Vendor Class-3 Web3 Wallet Authentication
             </h2>
             <p className="text-[11px] text-slate mt-0.5">
               For Registered Bidders & Commercial Suppliers

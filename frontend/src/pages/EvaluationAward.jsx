@@ -18,13 +18,39 @@ export default function EvaluationAward({ triggerToast, selectedPSU }) {
     triggerToast(`Technical qualification updated for ${updated[idx].vendor}`, 'success');
   };
 
-  const handleAwardConfirm = () => {
+  const handleAwardConfirm = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const token = localStorage.getItem('officer_token');
+      const winnerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'; // L1 vendor wallet
+
+      const res = await fetch('http://localhost:5000/api/tenders/1/award', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          winner: winnerAddress,
+          winningBidId: 1,
+          winningBidAmount: "45.2" // ETH amount
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Contract award failed on relay server.');
+      }
+
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Contract awarded to L1 Bidder (${bids[0].vendor}). 7-day dispute appeal window opened on-chain.`, 'success');
-    }, 1800);
+      triggerToast(`Contract awarded to L1 Bidder (${bids[0].vendor}) on-chain! Tx: ${data.txHash.substring(0, 18)}...`, 'success');
+    } catch (err) {
+      setIsSubmitting(false);
+      setModalOpen(false);
+      console.error("Contract award error:", err);
+      triggerToast(err.message, 'error');
+    }
   };
 
   return (
