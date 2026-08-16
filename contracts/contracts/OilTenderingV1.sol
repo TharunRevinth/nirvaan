@@ -147,9 +147,7 @@ contract OilTenderingV1 is Initializable, UUPSUpgradeable {
     // -----------------------------------------------------------------------
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    constructor() {}
 
     function initialize(
         address _multisigAdmin,

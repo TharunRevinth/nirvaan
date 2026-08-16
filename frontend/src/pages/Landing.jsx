@@ -17,17 +17,19 @@ export default function Landing({ triggerToast }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Handle Vendor Wallet Connect
-  const handleVendorConnect = () => {
-    const mockAddress = '0xfe3b2075775791234567890abcdef1234567bd73';
-    connectVendorWallet(mockAddress);
-
-    if (isVendorRegistered) {
-      triggerToast('Vendor Wallet authenticated. Welcome to NIRVAAN Bidding Dashboard.', 'success');
-      navigate('/vendor/dashboard');
-    } else {
-      triggerToast('Wallet connected. KYC Registration required before participating in bidding.', 'error');
-      navigate('/vendor/kyc');
+  // Handle Vendor Wallet Connect via window.ethereum
+  const handleVendorConnect = async () => {
+    try {
+      const connectedAddr = await connectVendorWallet();
+      if (isVendorRegistered) {
+        triggerToast(`MetaMask Connected: ${connectedAddr.substring(0, 6)}...${connectedAddr.substring(connectedAddr.length - 4)}. Welcome to NIRVAAN Bidding Dashboard.`, 'success');
+        navigate('/vendor/dashboard');
+      } else {
+        triggerToast(`MetaMask Connected: ${connectedAddr.substring(0, 6)}...${connectedAddr.substring(connectedAddr.length - 4)}. KYC Registration required before bidding.`, 'error');
+        navigate('/vendor/kyc');
+      }
+    } catch (err) {
+      triggerToast(err.message || 'Wallet connection failed.', 'error');
     }
   };
 
