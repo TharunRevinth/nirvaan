@@ -18,20 +18,22 @@ export default function TopBar() {
     <header className="bg-white border-b border-graphite/15 px-6 py-3.5 flex justify-between items-center w-full max-w-container-max mx-auto z-40">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-copper flex items-center justify-center font-bold text-white text-sm tracking-wider">
-            {officerUser ? selectedPSU.substring(0, 2) : 'GOI'}
+          <div className="w-8 h-8 bg-copper flex items-center justify-center font-bold text-white text-xs tracking-wider">
+            NVN
           </div>
           <div>
-            <h1 className="font-bold text-base text-graphite tracking-tight uppercase">
-              {officerUser ? `${selectedPSU} E-PROCUREMENT PORTAL` : 'INDIAN OIL PSUs E-TENDERING SYSTEM'}
+            <h1 className="font-bold text-base text-graphite tracking-tight uppercase flex items-center gap-2">
+              <span className="text-copper">NIRVAAN</span>
+              <span className="text-graphite/40 font-normal">|</span>
+              <span>{officerUser ? `${selectedPSU} PORTAL` : 'OIL PSUs BLOCKCHAIN E-TENDERING'}</span>
             </h1>
             <p className="text-xs text-slate font-mono">
-              Consortium Blockchain Network // Zero Gas Price
+              Consortium Blockchain Protocol // Zero Gas Price
             </p>
           </div>
         </div>
 
-        {/* PSU Selector Pills (Visible only for PSU Officers) */}
+        {/* PSU Selector Pills (Visible for PSU Officers) */}
         {officerUser && (
           <div className="hidden lg:flex border border-graphite/15 bg-offwhite">
             {['IOCL', 'BPCL', 'HPCL', 'ONGC', 'GAIL'].map((psu) => (

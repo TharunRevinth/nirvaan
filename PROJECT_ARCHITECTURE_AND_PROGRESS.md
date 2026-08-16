@@ -1,19 +1,20 @@
-# PROJECT ARCHITECTURE, IMPLEMENTATION PROGRESS & SYSTEM HANDOVER REPORT
-**System Title:** Permissioned Consortium Blockchain E-Tendering Platform for Indian Oil PSUs (IOCL, HPCL, BPCL, ONGC, GAIL)  
+# PROJECT NIRVAAN — ARCHITECTURE, IMPLEMENTATION PROGRESS & SYSTEM HANDOVER REPORT
+**System Title:** NIRVAAN — Permissioned Consortium Blockchain E-Tendering Platform for Indian Oil PSUs (IOCL, HPCL, BPCL, ONGC, GAIL)  
+**System Acronym:** **NIRVAAN** (Nationale Indelible Record & Verification Architecture for Autonomous Negotiation)  
 **Compliance Standards:** CVC E-Procurement Guidelines 2026, Indian IT Act 2000, GIGW V2.4  
 **Date Last Updated:** 16-Aug-2026  
 
 ---
 
 ## 1. Executive Summary & Overview
-Current central e-procurement portals for Indian public sector undertakings (PSUs) are vulnerable to insider bid tampering, timestamp disputes, and single-point-of-failure vulnerabilities. This project implements a permissioned consortium blockchain system leveraging **Hyperledger Besu** with **QBFT Consensus** (7 validator nodes, zero gas pricing) to guarantee cryptographic sealed-bid confidentiality (Commit-Reveal via Keccak-256), immutable chain-of-custody audit trails, IPFS decentralized specification storage, automated Oracle Keeper triggers, and statutory 7-day CVC dispute resolution mechanics.
+Current central e-procurement portals for Indian public sector undertakings (PSUs) are vulnerable to insider bid tampering, timestamp disputes, and single-point-of-failure vulnerabilities. **Project NIRVAAN** implements a permissioned consortium blockchain system leveraging **Hyperledger Besu** with **QBFT Consensus** (7 validator nodes, zero gas pricing) to guarantee cryptographic sealed-bid confidentiality (Commit-Reveal via Keccak-256), immutable chain-of-custody audit trails, IPFS decentralized specification storage, automated Oracle Keeper triggers, and statutory 7-day CVC dispute resolution mechanics.
 
 ---
 
 ## 2. Monorepo Repository Architecture
 
 ```
-oil-e-tendering-blockchain/
+nirvaan-oil-e-tendering/
 ├── contracts/                        # Smart Contracts & Hardhat Environment
 │   ├── contracts/
 │   │   └── OilTenderingV1.sol        # UUPS Upgradeable Smart Contract (Solidity ^0.8.24)
@@ -37,7 +38,7 @@ oil-e-tendering-blockchain/
 │   │   ├── components/
 │   │   │   ├── GovIdentityStrip.jsx  # Ashoka Emblem & Government of India Header Bar
 │   │   │   ├── AccessibilityBar.jsx  # Font Resizing (A-/A/A+), High Contrast, Skip to Main Content Link
-│   │   │   ├── TopBar.jsx            # PSU Entity Selector, Active Wallet / Officer Session Badges
+│   │   │   ├── TopBar.jsx            # NIRVAAN Logo, PSU Entity Selector, Active Session Badges
 │   │   │   ├── Sidebar.jsx           # Responsive Nav Sidebar (Role-scoped for PSU vs Vendor)
 │   │   │   ├── GovFooter.jsx         # Ministry Ownership, Last Updated Date, CVC Portal Links
 │   │   │   ├── ChainOfCustodyTimeline.jsx # Monospace Block Timestamp Chain-of-Custody Timeline
@@ -112,20 +113,20 @@ oil-e-tendering-blockchain/
 
 ### A. Express Authentication Backend
 ```bash
-cd /home/cybernode/Projects/oil-e-tendering-blockchain/backend
+cd /home/cybernode/Projects/nirvaan-oil-e-tendering/backend
 npm run seed      # Generates initial officers database (if missing)
 npm start         # Starts backend on http://localhost:5000
 ```
 
 ### B. React Vite Frontend Application
 ```bash
-cd /home/cybernode/Projects/oil-e-tendering-blockchain/frontend
+cd /home/cybernode/Projects/nirvaan-oil-e-tendering/frontend
 npm run dev       # Starts dev server on http://localhost:3000
 ```
 
 ### C. Smart Contract Compilation & Unit Tests
 ```bash
-cd /home/cybernode/Projects/oil-e-tendering-blockchain/contracts
+cd /home/cybernode/Projects/nirvaan-oil-e-tendering/contracts
 npx hardhat compile
 npx hardhat test
 ```
@@ -135,8 +136,8 @@ npx hardhat test
 ## 6. Project Stage Progress & Next Stage Roadmap
 
 - [x] **Stage 1 (Completed):** Architecture design report, Solidity smart contracts (`OilTenderingV1.sol`), Hardhat unit test suite, Hyperledger Besu QBFT genesis configuration.
-- [x] **Stage 2 (Completed):** Express JWT officer auth service, GIGW-compliant React + Vite frontend, wallet connect, sealed-bid Keccak256 commitment generator, strict route guards, and acceptance test scenarios.
-- [ ] **Stage 3 (Next Stage - In Progress):** Hyperledger Besu local node container setup (`docker-compose.yml` startup), deployed contract instance link with frontend Ethers.js provider (`OilTenderingV1` contract contract interaction), local IPFS pinning integration.
+- [x] **Stage 2 (Completed):** Express JWT officer auth service, NIRVAAN GIGW-compliant React + Vite frontend, wallet connect, sealed-bid Keccak256 commitment generator, strict route guards, and acceptance test scenarios.
+- [ ] **Stage 3 (Next Stage - In Progress):** Hyperledger Besu local node container setup (`docker-compose.yml` startup), deployed contract instance link with frontend Ethers.js provider (`OilTenderingV1` contract interaction), local IPFS pinning integration.
 - [ ] **Stage 4 (Upcoming):** Autonomous Oracle Keeper service integration (`keeper.js`), real-time event indexing with The Graph / Subgraph local node, and CVC dispute arbitration demo.
 
 ---

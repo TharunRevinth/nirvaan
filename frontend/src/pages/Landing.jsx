@@ -23,7 +23,7 @@ export default function Landing({ triggerToast }) {
     connectVendorWallet(mockAddress);
 
     if (isVendorRegistered) {
-      triggerToast('Vendor Wallet authenticated. Welcome to Commercial Bidding Dashboard.', 'success');
+      triggerToast('Vendor Wallet authenticated. Welcome to NIRVAAN Bidding Dashboard.', 'success');
       navigate('/vendor/dashboard');
     } else {
       triggerToast('Wallet connected. KYC Registration required before participating in bidding.', 'error');
@@ -105,13 +105,13 @@ export default function Landing({ triggerToast }) {
     <div id="main-content" className="max-w-4xl mx-auto py-10 px-4 space-y-8">
       <div className="text-center space-y-2">
         <span className="text-xs font-mono text-slate bg-slate/10 px-2 py-0.5 border border-slate/20">
-          GOVERNMENT OF INDIA E-PROCUREMENT AUTHENTICATION GATEWAY
+          PROJECT NIRVAAN // CVC COMPLIANT BLOCKCHAIN E-PROCUREMENT GATEWAY
         </span>
-        <h1 className="text-2xl font-bold text-graphite uppercase tracking-tight">
-          Indian Oil PSUs Blockchain E-Tendering Platform
+        <h1 className="text-3xl font-bold text-graphite uppercase tracking-tight">
+          NIRVAAN — Indian Oil PSUs Blockchain E-Tendering System
         </h1>
-        <p className="text-xs text-graphite/70 max-w-xl mx-auto">
-          Official procurement system for IOCL, HPCL, BPCL, ONGC, and GAIL under CVC Procurement Directives. Select your dedicated authentication portal below.
+        <p className="text-xs text-graphite/70 max-w-xl mx-auto leading-relaxed">
+          Nationale Indelible Record & Verification Architecture for Autonomous Negotiation. Official procurement platform for IOCL, HPCL, BPCL, ONGC, and GAIL under CVC Procurement Guidelines.
         </p>
       </div>
 
@@ -221,11 +221,11 @@ export default function Landing({ triggerToast }) {
 
           <div className="space-y-4">
             <p className="text-xs text-graphite leading-relaxed">
-              Connect your authorized Web3 hardware token or MetaMask wallet. The connected wallet address acts as your cryptographically signed vendor identity on the consortium blockchain network.
+              Connect your authorized Web3 hardware token or MetaMask wallet. The connected wallet address acts as your cryptographically signed vendor identity on the NIRVAAN consortium blockchain network.
             </p>
 
             <div className="bg-offwhite p-3 border border-graphite/15 text-xs font-mono space-y-1">
-              <div className="text-graphite font-bold">Network: Indian Oil Consortium Besu</div>
+              <div className="text-graphite font-bold">Network: NIRVAAN Consortium Besu</div>
               <div className="text-slate text-[11px]">Chain ID: 1337 // Zero Gas Price</div>
             </div>
 
