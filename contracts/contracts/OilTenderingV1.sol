@@ -299,6 +299,12 @@ contract OilTenderingV1 is Initializable, UUPSUpgradeable {
         require(tender.psuAddress == msg.sender, "Only issuing PSU allowed");
         require(tender.status == TenderStatus.UnderEvaluation, "Tender not under evaluation");
 
+        // Verify all bids in tender have been evaluated (no pending qualifications)
+        Bid[] storage bids = tenderBids[_tenderId];
+        for (uint256 i = 0; i < bids.length; i++) {
+            require(bids[i].status == BidStatus.Opened, "Bids must be opened before award");
+        }
+
         tender.winner = _winner;
         tender.winningBidId = _winningBidId;
         tender.winningBidAmount = _winningBidAmount;
@@ -316,6 +322,7 @@ contract OilTenderingV1 is Initializable, UUPSUpgradeable {
     ) external payable onlyVendor {
         Tender storage tender = tenders[_tenderId];
         require(tender.status == TenderStatus.Awarded, "Tender not in Awarded state");
+        require(msg.sender != tender.winner, "Winning vendor cannot dispute own award");
         require(block.timestamp <= tender.appealDeadline, "Appeal window has closed");
         require(msg.value >= 1 ether, "Dispute bond required"); // 1 base token bond
 

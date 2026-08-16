@@ -38,3 +38,6 @@ docker/ipfs-data/
 *.sw?
 .idea/
 .vscode/
+*.md
+docs/
+

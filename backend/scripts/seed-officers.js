@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,22 +14,49 @@ if (!fs.existsSync(dataDir)) {
 
 const dbPath = path.join(dataDir, 'officers.json');
 
-async function seed() {
-  console.log('Seeding PSU Officer Accounts with bcrypt password hashes...');
-  const tempPassword = 'TempOfficerPassword123!';
-  const hashedPassword = await bcrypt.hash(tempPassword, 10);
+function generateSecureRandomPassword() {
+  return 'Temp-' + crypto.randomBytes(8).toString('hex') + '!';
+}
 
-  const initialOfficers = [
-    { id: '1', username: 'iocl_officer', psu: 'IOCL', passwordHash: hashedPassword, mustChangePassword: true, officerId: '88-X92-IOC' },
-    { id: '2', username: 'bpcl_officer', psu: 'BPCL', passwordHash: hashedPassword, mustChangePassword: true, officerId: '91-Y44-BPC' },
-    { id: '3', username: 'hpcl_officer', psu: 'HPCL', passwordHash: hashedPassword, mustChangePassword: true, officerId: '74-Z12-HPC' },
-    { id: '4', username: 'ongc_officer', psu: 'ONGC', passwordHash: hashedPassword, mustChangePassword: true, officerId: '63-K88-ONG' },
-    { id: '5', username: 'gail_officer', psu: 'GAIL', passwordHash: hashedPassword, mustChangePassword: true, officerId: '52-M33-GAI' },
+async function seed() {
+  console.log('=======================================================');
+  console.log('  SEEDING PSU OFFICER ACCOUNTS WITH BCRYPT HASHES     ');
+  console.log('=======================================================\n');
+
+  const psuList = [
+    { username: 'iocl_officer', psu: 'IOCL', officerId: '88-X92-IOC' },
+    { username: 'bpcl_officer', psu: 'BPCL', officerId: '91-Y44-BPC' },
+    { username: 'hpcl_officer', psu: 'HPCL', officerId: '74-Z12-HPC' },
+    { username: 'ongc_officer', psu: 'ONGC', officerId: '63-K88-ONG' },
+    { username: 'gail_officer', psu: 'GAIL', officerId: '52-M33-GAI' },
   ];
 
-  fs.writeFileSync(dbPath, JSON.stringify(initialOfficers, null, 2));
-  console.log(`Successfully seeded ${initialOfficers.length} officer accounts in data/officers.json!`);
-  console.log(`Default Temporary Password for all officers: ${tempPassword}`);
+  const officers = [];
+  const credentialsLog = [];
+
+  for (let i = 0; i < psuList.length; i++) {
+    const item = psuList[i];
+    const tempPassword = generateSecureRandomPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    officers.push({
+      id: String(i + 1),
+      username: item.username,
+      psu: item.psu,
+      passwordHash: hashedPassword,
+      mustChangePassword: true,
+      officerId: item.officerId
+    });
+
+    credentialsLog.push({ username: item.username, psu: item.psu, tempPassword });
+  }
+
+  fs.writeFileSync(dbPath, JSON.stringify(officers, null, 2));
+
+  console.log(`Successfully seeded ${officers.length} officer accounts in data/officers.json!\n`);
+  console.log('Generated Temporary Credentials (one-time display for initial admin provisioning):');
+  console.table(credentialsLog);
+  console.log('\nNote: On first login, officers must change their password before dashboard access.');
 }
 
 seed().catch(console.error);
