@@ -162,6 +162,7 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
 
       const newTender = {
         id: generatedId,
+        onChainId: data.tenderId ? Number(data.tenderId) : 1,
         psu: activePSU,
         category,
         title,

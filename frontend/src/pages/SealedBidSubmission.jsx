@@ -182,14 +182,21 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
           </h2>
 
           <div className="space-y-1.5">
-            <label htmlFor="target-tender-input" className="text-xs font-medium text-[#1A1A18]">Target Tender</label>
-            <input
-              id="target-tender-input"
-              type="text"
-              disabled
-              value="Tender #1 (Expansion of Offshore Pipeline)"
-              className="w-full bg-[#FAFAF9] border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs text-[#1A1A18] font-medium cursor-not-allowed opacity-90"
-            />
+            <label htmlFor="target-tender-select" className="text-xs font-medium text-[#1A1A18]">
+              Target Tender Package *
+            </label>
+            <select
+              id="target-tender-select"
+              value={selectedTenderId}
+              onChange={(e) => setSelectedTenderId(e.target.value)}
+              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+            >
+              {tenders.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.id} — {t.title} ({t.status || 'OPEN'})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">
