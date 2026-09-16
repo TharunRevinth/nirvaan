@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NirvaanLogo from './NirvaanLogo';
 
 export default function TopBar() {
   const navigate = useNavigate();
@@ -25,9 +26,7 @@ export default function TopBar() {
           onKeyDown={(e) => { if (e.key === 'Enter') navigate('/'); }}
           aria-label="NIRVAAN Home"
         >
-          <div className="w-8 h-8 rounded-lg bg-[#1A1A18] text-white flex items-center justify-center font-bold text-xs tracking-wider">
-            NVN
-          </div>
+          <NirvaanLogo className="w-9 h-9 shrink-0 drop-shadow-xs group-hover:scale-105 transition-transform" size={36} />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-sm tracking-tight text-[#1A1A18]">
@@ -46,25 +45,14 @@ export default function TopBar() {
           </div>
         </div>
 
-        {/* PSU Selector Pills (Visible for PSU Officers) */}
+        {/* Institutional Tenant Badge (Strictly Locked to Authenticated Officer Entity) */}
         {officerUser && (
-          <div className="hidden lg:flex p-0.5 rounded-lg bg-[#F5F4F0] border border-[#E8E6E1] gap-1" role="group" aria-label="Select PSU Entity">
-            {['IOCL', 'BPCL', 'HPCL', 'ONGC', 'GAIL'].map((psu) => (
-              <button
-                key={psu}
-                type="button"
-                onClick={() => setSelectedPSU(psu)}
-                aria-label={`Select ${psu}`}
-                aria-pressed={selectedPSU === psu}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none ${
-                  selectedPSU === psu 
-                    ? 'bg-white text-[#1A1A18] shadow-sm font-bold border border-[#E8E6E1]' 
-                    : 'text-[#71716D] hover:text-[#1A1A18]'
-                }`}
-              >
-                {psu}
-              </button>
-            ))}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F5F4F0] border border-[#E8E6E1] text-xs" aria-label="Authenticated PSU Entity">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" aria-hidden="true"></span>
+            <span className="font-bold text-[#1A1A18] font-mono tracking-tight uppercase">
+              {officerUser.psu}
+            </span>
+            <span className="text-[#71716D] font-medium">• Authorized Procurement Cell</span>
           </div>
         )}
       </div>

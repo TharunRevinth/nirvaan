@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function TenderBrowse({ tenders, selectedPSU, setSelectedPSU }) {
+export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelectedPSU }) {
+  const { officerUser, walletAddress, selectedPSU } = useAuth();
+  const isOfficer = Boolean(officerUser);
+  const isVendor = Boolean(walletAddress && !officerUser);
+  const isPublic = !isOfficer && !isVendor;
+
+  const officerPSU = officerUser?.psu || selectedPSU || 'IOCL';
+  const [localPsuFilter, setLocalPsuFilter] = useState(isOfficer ? officerPSU : 'ALL');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   const filtered = tenders.filter(t => {
-    const matchPSU = selectedPSU === 'ALL' || t.psu === selectedPSU;
+    // Officers are strictly tenant-locked to their own PSU's tenders
+    const matchPSU = isOfficer ? t.psu === officerPSU : (localPsuFilter === 'ALL' || t.psu === localPsuFilter);
     const matchCat = categoryFilter === 'ALL' || t.category === categoryFilter;
     const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
     const matchSearch = t.id.toLowerCase().includes(search.toLowerCase()) || 
@@ -21,13 +30,15 @@ export default function TenderBrowse({ tenders, selectedPSU, setSelectedPSU }) {
       <div className="flex flex-col sm:flex-row justify-between sm:items-end border-b border-[#E8E6E1] pb-4 gap-4">
         <div>
           <span className="text-[11px] font-mono font-semibold uppercase text-[#71716D] tracking-wider">
-            Public Register • Active NITs
+            {isOfficer ? `${officerPSU} Register • Entity NITs` : 'Public Register • Active NITs'}
           </span>
           <h1 className="text-2xl font-bold text-[#1A1A18] tracking-tight mt-1">
-            Active Procurement Tenders
+            {isOfficer ? `${officerPSU} Procurement Register` : 'Active Procurement Tenders'}
           </h1>
           <p className="text-xs text-[#575753] mt-0.5">
-            Displaying official tenders published across IOCL, HPCL, BPCL, ONGC, and GAIL.
+            {isOfficer 
+              ? `Displaying official tenders issued by ${officerPSU} Procurement Cell. Scoped strictly to your tenant.`
+              : 'Displaying official tenders published across IOCL, HPCL, BPCL, ONGC, and GAIL.'}
           </p>
         </div>
         <div className="text-left sm:text-right font-mono text-xs text-[#71716D] tabular-nums shrink-0 space-y-0.5">
@@ -54,23 +65,34 @@ export default function TenderBrowse({ tenders, selectedPSU, setSelectedPSU }) {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 border-r border-[#E8E6E1] pr-3">
-          <label htmlFor="psu-filter-select" className="font-medium text-[#575753]">PSU:</label>
-          <select
-            id="psu-filter-select"
-            name="psuFilter"
-            value={selectedPSU}
-            onChange={(e) => setSelectedPSU(e.target.value)}
-            className="bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none cursor-pointer font-medium"
-          >
-            <option value="ALL">All PSUs</option>
-            <option value="IOCL">IOCL</option>
-            <option value="BPCL">BPCL</option>
-            <option value="HPCL">HPCL</option>
-            <option value="ONGC">ONGC</option>
-            <option value="GAIL">GAIL</option>
-          </select>
-        </div>
+        {/* PSU Filter: Locked badge for Officer, Dropdown for Public/Vendor */}
+        {isOfficer ? (
+          <div className="flex items-center gap-1.5 border-r border-[#E8E6E1] pr-3">
+            <span className="font-medium text-[#575753]">Tenant:</span>
+            <span className="bg-[#F5F4F0] border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-[#1A1A18] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+              <span>{officerPSU} (Restricted)</span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 border-r border-[#E8E6E1] pr-3">
+            <label htmlFor="psu-filter-select" className="font-medium text-[#575753]">PSU:</label>
+            <select
+              id="psu-filter-select"
+              name="psuFilter"
+              value={localPsuFilter}
+              onChange={(e) => setLocalPsuFilter(e.target.value)}
+              className="bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none cursor-pointer font-medium"
+            >
+              <option value="ALL">All PSUs</option>
+              <option value="IOCL">IOCL</option>
+              <option value="BPCL">BPCL</option>
+              <option value="HPCL">HPCL</option>
+              <option value="ONGC">ONGC</option>
+              <option value="GAIL">GAIL</option>
+            </select>
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5 border-r border-[#E8E6E1] pr-3">
           <label htmlFor="category-filter-select" className="font-medium text-[#575753]">Category:</label>
@@ -174,22 +196,51 @@ export default function TenderBrowse({ tenders, selectedPSU, setSelectedPSU }) {
                     </td>
                     <td className="p-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <Link
-                          to={`/tenders/${t.id}`}
-                          className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                            t.status === 'AWARDED'
-                              ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 focus-visible:ring-emerald-600'
-                              : 'border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] focus-visible:ring-[#A13D2B]'
-                          }`}
-                        >
-                          {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
-                        </Link>
-                        {t.status !== 'AWARDED' && (
+                        {isOfficer ? (
+                          <>
+                            <Link
+                              to={`/tenders/${t.id}`}
+                              className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                            >
+                              {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                            </Link>
+                            {t.status === 'OPEN' && (
+                              <Link
+                                to="/psu/evaluation"
+                                className="bg-[#1A1A18] hover:bg-black text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                              >
+                                Evaluate →
+                              </Link>
+                            )}
+                          </>
+                        ) : isVendor ? (
+                          <>
+                            <Link
+                              to={`/tenders/${t.id}`}
+                              className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                                t.status === 'AWARDED'
+                                  ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 focus-visible:ring-emerald-600'
+                                  : 'border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] focus-visible:ring-[#A13D2B]'
+                              }`}
+                            >
+                              {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                            </Link>
+                            {t.status !== 'AWARDED' && !t.isExpired && (
+                              <Link
+                                to="/vendor/submit-bid"
+                                className="bg-[#A13D2B] hover:bg-[#8A3323] text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                              >
+                                Bid
+                              </Link>
+                            )}
+                          </>
+                        ) : (
+                          /* Public / Unauthenticated visitor: NO Bid button */
                           <Link
-                            to="/vendor/submit-bid"
-                            className="bg-[#A13D2B] hover:bg-[#8A3323] text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                            to={`/tenders/${t.id}`}
+                            className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-3 py-1.5 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
                           >
-                            Bid
+                            {t.status === 'AWARDED' ? 'Award Details →' : 'View Details'}
                           </Link>
                         )}
                       </div>

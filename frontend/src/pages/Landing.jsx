@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NirvaanLogo from '../components/NirvaanLogo';
 
 export default function Landing({ triggerToast }) {
   const navigate = useNavigate();
@@ -120,13 +121,16 @@ export default function Landing({ triggerToast }) {
     <div id="main-content" className="max-w-xl mx-auto py-12 px-4 space-y-6">
       
       {/* Platform Title */}
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A18] tracking-tight">
-          NIRVAAN E-Tendering
-        </h1>
-        <p className="text-xs sm:text-sm text-[#575753]">
-          Unified e-procurement platform for Indian Oil PSUs under CVC guidelines.
-        </p>
+      <div className="text-center space-y-3 flex flex-col items-center">
+        <NirvaanLogo className="w-14 h-14 drop-shadow-sm" size={56} />
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A18] tracking-tight">
+            NIRVAAN E-Tendering
+          </h1>
+          <p className="text-xs sm:text-sm text-[#575753] mt-1">
+            Unified e-procurement platform for Indian Oil PSUs under CVC guidelines.
+          </p>
+        </div>
       </div>
 
       {/* Two-Path Authentication Card */}

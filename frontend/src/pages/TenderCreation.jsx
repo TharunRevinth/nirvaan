@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
+import { useAuth } from '../context/AuthContext';
 
 function toDatetimeLocal(date) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -43,8 +44,10 @@ function getDefaultOpening(deadlineIso) {
   return toDatetimeLocal(d);
 }
 
-export default function TenderCreation({ selectedPSU, triggerToast, setTenders, tenders }) {
+export default function TenderCreation({ selectedPSU: propPsu, triggerToast, setTenders, tenders }) {
   const navigate = useNavigate();
+  const { officerUser, selectedPSU } = useAuth();
+  const activePSU = officerUser?.psu || selectedPSU || propPsu || 'IOCL';
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Pipeline Infrastructure');
   const [desc, setDesc] = useState('');
@@ -93,16 +96,41 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
     }
   };
 
-  const handlePublish = async () => {
-    if (new Date(opening).getTime() <= new Date(deadline).getTime()) {
-      triggerToast('Public bid opening must be after the submission deadline.', 'error');
+  const handlePreSubmitValidation = (e) => {
+    e.preventDefault();
+
+    if (!title.trim()) {
+      triggerToast('Validation Error: Tender title is required.', 'error');
       return;
     }
 
+    if (!ipfsCid) {
+      triggerToast('IPFS Required: Technical Specification dossier must be uploaded to generate cryptographic hash.', 'error');
+      return;
+    }
+
+    const deadTime = new Date(deadline).getTime();
+    const openTime = new Date(opening).getTime();
+    const now = Date.now();
+
+    if (deadTime <= now) {
+      triggerToast('Deadline Error: Submission deadline must be in the future.', 'error');
+      return;
+    }
+
+    if (openTime <= deadTime) {
+      triggerToast('Schedule Error: Bid opening timestamp must be strictly after the submission deadline.', 'error');
+      return;
+    }
+
+    setModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('officer_token');
-
+      
       const res = await fetch('http://localhost:5000/api/tenders/create', {
         method: 'POST',
         headers: {
@@ -110,39 +138,49 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          ipfsHash: ipfsCid,
-          submissionDeadline: deadline,
-          openingTime: opening,
-          minEMD: "0.1"
+          title,
+          category,
+          desc,
+          deadline,
+          opening,
+          emd: emd || "500000",
+          budget: budget || "45000000",
+          ipfsCid: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc"
         })
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Tender creation failed on server.');
+        throw new Error(data.error || 'Server rejected tender publication.');
       }
 
-      setIsSubmitting(false);
-      setModalOpen(false);
+      const generatedId = data.tenderIdString || `TND-${new Date().getFullYear().toString().slice(-2)}-${Math.floor(1000 + Math.random() * 9000)}-${activePSU.charAt(0)}`;
 
-      const newId = `TND-26-${data.tenderId}-N`;
-      const newTenderObj = {
-        id: newId,
-        psu: selectedPSU,
+      const newTender = {
+        id: generatedId,
+        psu: activePSU,
         category,
         title,
         desc,
         valueCr: (Number(budget) / 10000000).toFixed(2),
-        emd: `${Number(emd).toLocaleString()} INR`,
-        deadline: formatDisplayDate(deadline),
-        opening: formatDisplayDate(opening),
+        minEmdAmount: Number(emd),
+        emd: `${Number(emd).toLocaleString('en-IN')} INR`,
+        deadline: deadline.replace('T', ' '),
+        isExpired: false,
+        appealWindowClosed: false,
         status: 'OPEN',
         cid: ipfsCid,
-        txHash: data.txHash
+        txHash: data.txHash,
+        blockNumber: data.blockNumber
       };
 
-      setTenders([newTenderObj, ...tenders]);
-      triggerToast(`NIT published on-chain. Tx: ${data.txHash.substring(0, 18)}…`, 'success');
+      if (setTenders) {
+        setTenders(prev => [newTender, ...prev]);
+      }
+
+      setIsSubmitting(false);
+      setModalOpen(false);
+      triggerToast(`NIT published on-chain for ${activePSU}. Ref: ${generatedId}. Tx: ${data.txHash.substring(0, 18)}…`, 'success');
       navigate('/psu/dashboard');
     } catch (err) {
       setIsSubmitting(false);
@@ -162,8 +200,20 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
           Create Notice Inviting Tender (NIT)
         </h1>
         <p className="text-xs text-[#575753] mt-0.5">
-          Publishing on behalf of <strong className="text-[#1A1A18]">{selectedPSU} Procurement Cell</strong>
+          Publishing on behalf of <strong className="text-[#1A1A18]">{activePSU} Procurement Cell</strong>
         </p>
+      </div>
+
+      {/* Institutional Tenant Lock Status */}
+      <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+          <span className="font-mono font-bold text-[#1A1A18] uppercase">{activePSU} Procurement Cell</span>
+          <span className="text-[#71716D]">• Officer: <strong className="text-[#1A1A18]">{officerUser?.username || 'iocl_officer'}</strong></span>
+        </div>
+        <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded font-semibold w-fit">
+          Tenant Authorized &amp; Locked
+        </span>
       </div>
 
       <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
@@ -383,8 +433,8 @@ export default function TenderCreation({ selectedPSU, triggerToast, setTenders, 
       <ConfirmationModal
         isOpen={modalOpen}
         title="Confirm NIT Publication"
-        message={`Are you sure you want to publish the Notice Inviting Tender for "${title}" under ${selectedPSU}?`}
-        onConfirm={handlePublish}
+        message={`Are you sure you want to publish the Notice Inviting Tender for "${title}" under ${activePSU}?`}
+        onConfirm={handleSubmit}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}
       />

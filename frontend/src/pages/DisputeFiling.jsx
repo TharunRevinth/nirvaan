@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 
 export default function DisputeFiling({ triggerToast, tenders = [] }) {
-  const { walletAddress } = useAuth();
+  const { walletAddress, officerUser, isOfficerAuthenticated } = useAuth();
+
   const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
   const [reason, setReason] = useState('Technical Specification Exclusion');
   const [description, setDescription] = useState('');

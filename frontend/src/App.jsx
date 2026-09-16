@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AccessibilityBar from './components/AccessibilityBar';
@@ -20,7 +20,19 @@ import TenderCreation from './pages/TenderCreation';
 import EvaluationAward from './pages/EvaluationAward';
 
 export default function App() {
+  const location = useLocation();
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const flash = sessionStorage.getItem('flash_toast');
+    if (flash) {
+      sessionStorage.removeItem('flash_toast');
+      try {
+        setToast(JSON.parse(flash));
+        setTimeout(() => setToast(null), 5000);
+      } catch (e) {}
+    }
+  }, [location.pathname]);
 
   const triggerToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -170,7 +182,7 @@ export default function App() {
 
               {/* Shared Tender Detail Page & Public Aliases */}
               <Route path="/tenders/:id" element={<TenderDetail tenders={tenders} />} />
-              <Route path="/tenders" element={<Navigate to="/vendor/dashboard" replace />} />
+              <Route path="/tenders" element={<TenderBrowse tenders={tenders} selectedPSU="ALL" setSelectedPSU={() => {}} />} />
               <Route path="/register" element={<VendorRegistration triggerToast={triggerToast} />} />
               <Route path="/login" element={<Navigate to="/" replace />} />
 

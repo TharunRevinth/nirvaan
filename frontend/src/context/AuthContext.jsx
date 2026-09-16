@@ -63,6 +63,7 @@ export function AuthProvider({ children }) {
 
   // Real MetaMask Connection Function
   const connectVendorWallet = async () => {
+    logoutOfficerSession();
     setNetworkError('');
 
     if (!window.ethereum) {
@@ -131,6 +132,7 @@ export function AuthProvider({ children }) {
     if (!isDevDemoEnabled) {
       throw new Error('Development simulation bypass is disabled. Please connect a verified Web3 wallet (MetaMask).');
     }
+    logoutOfficerSession();
     setWalletAddress(address);
     localStorage.setItem('vendor_wallet', address);
     setRegisteredVendors(prev => ({
@@ -154,6 +156,10 @@ export function AuthProvider({ children }) {
     if (officerData?.psu) {
       setSelectedPSU(officerData.psu);
     }
+    // Strict session isolation: Clear any vendor wallet
+    setWalletAddress('');
+    localStorage.removeItem('vendor_wallet');
+    localStorage.removeItem('vendor_registered');
     localStorage.setItem('officer_token', token);
     localStorage.setItem('officer_user', JSON.stringify(officerData));
   };
@@ -166,6 +172,8 @@ export function AuthProvider({ children }) {
   };
 
   const activateVendorSession = (address) => {
+    // Strict session isolation: Clear any officer session
+    logoutOfficerSession();
     setWalletAddress(address);
     localStorage.setItem('vendor_wallet', address);
     localStorage.setItem('vendor_registered', 'true');
