@@ -142,10 +142,14 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
           category,
           desc,
           deadline,
+          submissionDeadline: deadline,
           opening,
+          openingTime: opening,
           emd: emd || "500000",
+          minEMD: emd ? (Number(emd) > 50 ? "0.1" : emd) : "0.1",
           budget: budget || "45000000",
-          ipfsCid: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc"
+          ipfsCid: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc",
+          ipfsHash: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc"
         })
       });
 

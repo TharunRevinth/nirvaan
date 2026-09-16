@@ -238,6 +238,11 @@ function safeParseEther(val, defaultVal = "0.1") {
     if (/^\d+$/.test(str) && BigInt(str) > 1000000000000n) {
       return BigInt(str);
     }
+    const num = Number(str);
+    if (!isNaN(num) && num > 50) {
+      // EMD was passed in INR currency (e.g. 500,000 INR) -> map to realistic testnet ETH (0.1 ETH)
+      return ethers.parseEther(defaultVal);
+    }
     return ethers.parseEther(str);
   } catch (err) {
     return ethers.parseEther(defaultVal);
@@ -247,14 +252,40 @@ function safeParseEther(val, defaultVal = "0.1") {
 // POST /api/tenders/create — PSU Officer Server-side Signing Relay for Tender Creation
 app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
   try {
-    const { ipfsHash, submissionDeadline, openingTime, minEMD } = req.body;
+    const ipfsHash = req.body.ipfsHash || req.body.ipfsCid || req.body.cid || "QmDefaultTenderSpecHash112233445566778899aabbcc";
+    const submissionDeadline = req.body.submissionDeadline || req.body.deadline;
+    const openingTime = req.body.openingTime || req.body.opening;
+    const minEMD = req.body.minEMD || req.body.emd || "0.1";
 
-    if (!ipfsHash || !submissionDeadline || !openingTime || !minEMD) {
-      return res.status(400).json({ error: 'Missing required tender creation parameters.' });
+    if (!submissionDeadline || !openingTime) {
+      return res.status(400).json({ error: 'Missing required tender creation parameters: deadline and opening time are required.' });
     }
 
-    const deadLineTimestamp = Math.floor(new Date(submissionDeadline).getTime() / 1000) || Number(submissionDeadline);
-    const openingTimestamp = Math.floor(new Date(openingTime).getTime() / 1000) || Number(openingTime);
+    let deadLineTimestamp = Math.floor(new Date(submissionDeadline).getTime() / 1000);
+    if (isNaN(deadLineTimestamp) || deadLineTimestamp <= 0) {
+      deadLineTimestamp = Number(submissionDeadline);
+    }
+
+    let openingTimestamp = Math.floor(new Date(openingTime).getTime() / 1000);
+    if (isNaN(openingTimestamp) || openingTimestamp <= 0) {
+      openingTimestamp = Number(openingTime);
+    }
+
+    const latestBlock = await provider.getBlock('latest');
+    const chainNow = latestBlock ? latestBlock.timestamp : Math.floor(Date.now() / 1000);
+
+    if (deadLineTimestamp <= chainNow) {
+      return res.status(400).json({
+        error: `Submission deadline (${new Date(deadLineTimestamp * 1000).toISOString()}) must be in the future relative to current blockchain time (${new Date(chainNow * 1000).toISOString()}).`
+      });
+    }
+
+    if (openingTimestamp <= deadLineTimestamp) {
+      return res.status(400).json({
+        error: 'Bid opening time must be strictly after the submission deadline.'
+      });
+    }
+
     const emdWei = safeParseEther(minEMD, "0.1");
 
     // Execute createTender on smart contract using server wallet
