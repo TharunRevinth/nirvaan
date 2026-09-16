@@ -8,7 +8,91 @@ The platform is designed in strict compliance with the Central Vigilance Commiss
 
 ---
 
-## 1. Architectural Highlights
+## 1. System Architecture Overview
+
+```mermaid
+flowchart TD
+    subgraph Users["User & Identity Tier"]
+        PSU["PSU Procurement Officers<br/>(IOCL / BPCL / HPCL / ONGC / GAIL)"]
+        Vendor["Commercial Bidders<br/>(Accredited Suppliers)"]
+        Public["Public Auditors & Citizens<br/>(CVC & Transparency Oversight)"]
+    end
+
+    subgraph Client["Presentation & Application Layer (React 18 + GIGW)"]
+        UI["NIRVAAN Web Portal<br/>(Port 3000)"]
+        AuthCtx["AuthContext Provider<br/>(JWT Officer / Web3 Wallet)"]
+        CryptoClient["Client-Side Keccak-256 Hasher<br/>(Commit-Reveal Salting)"]
+        IPFSClient["Resilient IPFS Client<br/>(SHA-256 Digest Verification)"]
+    end
+
+    subgraph Services["Consortium Services & Relayers"]
+        Express["API Gateway Backend<br/>(Port 5000 / JWT & Relayers)"]
+        Kubo["IPFS Storage Node<br/>(Ports 5001 / 8080)"]
+        Keeper["Autonomous Oracle Keeper<br/>(Time-Triggered State Monitor)"]
+    end
+
+    subgraph Blockchain["Permissioned Blockchain Layer (Port 8545)"]
+        Besu["Hyperledger Besu Consortium<br/>(7 Validator Nodes / QBFT / Zero-Gas)"]
+        Proxy["UUPS Transparent Proxy<br/>(0x5FbDB2315678afecb367f032d93F642f64180aa3)"]
+        Contract["OilTenderingV1 Engine<br/>(State Machine, Escrow, Commitments)"]
+    end
+
+    PSU -->|"JWT Authenticated Session"| UI
+    Vendor -->|"Web3 / MetaMask EIP-1193"| UI
+    Public -->|"Read-Only Public Ledger"| UI
+
+    UI --> AuthCtx
+    UI --> CryptoClient
+    UI --> IPFSClient
+
+    AuthCtx --> Express
+    IPFSClient --> Kubo
+    Express -->|"Server-Signed Relays"| Besu
+
+    Keeper -->|"openBids() / finalizeTender()"| Besu
+    CryptoClient -->|"Sealed Commitments"| Besu
+
+    Besu --> Proxy
+    Proxy --> Contract
+```
+
+---
+
+## 2. Tender State Machine Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created: PSU Officer calls createTender()
+    note right of Created: Sealed Bidding Window\nVendors call submitBid()\nwith EMD & Keccak-256 commitment
+
+    Created --> UnderEvaluation: Oracle Keeper calls openBids()\n(block.timestamp >= openingTime)
+    note right of UnderEvaluation: Reveal & Evaluation Window\nVendors call revealBid()\nPSU Officer sets technical scores
+
+    UnderEvaluation --> Awarded: PSU Officer calls awardTender()\n(L1 Determination)
+    note right of Awarded: Statutory 7-Day Standstill Window\ntender.appealDeadline = block.timestamp + 7 days
+
+    Awarded --> Disputed: Accredited Vendor calls disputeTender()\n(requires 1.0 ETH escrow bond)
+    
+    state Disputed {
+        [*] --> CVCReview
+        CVCReview --> Upheld: CVC rules in favor of challenger
+        CVCReview --> Dismissed: CVC dismisses dispute
+    }
+
+    Upheld --> UnderEvaluation: CVC calls resolveDispute(upheld=true)\n(Tender reopened for re-evaluation)
+    Dismissed --> DisputeResolved: CVC calls resolveDispute(upheld=false)\n(Dispute bond forfeited to treasury)
+
+    Awarded --> Finalized: Oracle Keeper calls finalizeTender()\n(block.timestamp > appealDeadline, no dispute)
+    DisputeResolved --> Finalized: Oracle Keeper calls finalizeTender()\n(block.timestamp > appealDeadline)
+
+    note right of Finalized: Contract Award Sealed\n_refundLosingBidders() executes\nFull on-chain custody archive
+
+    Finalized --> [*]
+```
+
+---
+
+## 3. Architectural Highlights
 
 - **Permissioned Zero-Gas Consortium:** Operates on Hyperledger Besu utilizing the QBFT (Quorum Byzantine Fault Tolerant) consensus protocol across seven authorized validator nodes, enforcing a zero-base-fee gas model (`gasPrice: 0x0`) for zero-cost internal execution.
 - **Client-Side Sealed-Bid Cryptography:** Commercial financial bids are salted and hashed client-side before broadcast using Solidity `keccak256(vendorAddress, bidAmount, salt, tenderId)`. Bid amounts remain mathematically confidential until the automated public opening phase.
@@ -19,7 +103,7 @@ The platform is designed in strict compliance with the Central Vigilance Commiss
 
 ---
 
-## 2. Security & Role Authorization Matrix
+## 4. Security & Role Authorization Matrix
 
 | Dimension | PSU Procurement Officer | Commercial Bidder (Vendor) | Public Auditor / Citizen |
 | :--- | :--- | :--- | :--- |
@@ -32,7 +116,7 @@ The platform is designed in strict compliance with the Central Vigilance Commiss
 
 ---
 
-## 3. Monorepo Repository Structure
+## 5. Monorepo Repository Structure
 
 ```
 nirvaan/
@@ -95,7 +179,7 @@ nirvaan/
 
 ---
 
-## 4. Environment Setup & Execution
+## 6. Environment Setup & Execution
 
 ### Prerequisites
 - Node.js (v18.0.0 or higher)
@@ -152,7 +236,7 @@ The application will be accessible at `http://localhost:3000`.
 
 ---
 
-## 5. Verification & Test Suite Summary
+## 7. Verification & Test Suite Summary
 
 The smart contract suite in [`contracts/test/OilTendering.test.js`](contracts/test/OilTendering.test.js) verifies eight critical operational invariants:
 
@@ -167,7 +251,7 @@ The smart contract suite in [`contracts/test/OilTendering.test.js`](contracts/te
 
 ---
 
-## 6. Regulatory & Compliance Standards
+## 8. Regulatory & Compliance Standards
 
 - **Information Technology Act, 2000:** Implements digital signatures and hash commitments compliant with Section 3 (Authentication of electronic records) and Section 4 (Legal recognition of electronic records).
 - **Central Vigilance Commission (CVC):** Upholds directives regarding public procurement transparency, mandatory tender publicity periods, post-award standstill windows, and independent grievance redressal.
