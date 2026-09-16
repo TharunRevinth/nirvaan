@@ -1,54 +1,74 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 export default function ConfirmationModal({ isOpen, title, message, onConfirm, onCancel, isSubmitting }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen && !isSubmitting) {
+        onCancel();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isSubmitting, onCancel]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-graphite/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white border-2 border-graphite max-w-md w-full p-6 shadow-2xl space-y-4">
-        <div className="border-b border-graphite/15 pb-3 flex justify-between items-center">
-          <h3 className="font-bold text-sm uppercase text-graphite tracking-wide">
+    <div 
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-desc"
+      className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+    >
+      <div className="bg-white border border-[#E8E6E1] max-w-md w-full p-6 rounded-2xl shadow-xl space-y-4">
+        <div className="border-b border-[#E8E6E1] pb-3 flex justify-between items-center">
+          <h3 id="modal-title" className="font-bold text-sm text-[#1A1A18] tracking-tight">
             {title || 'Confirmation Required'}
           </h3>
-          <span className="text-copper text-xs font-mono font-bold">PERMANENT ACTION</span>
+          <span className="text-[#A13D2B] text-[10px] font-mono font-semibold uppercase bg-[#A13D2B]/10 px-2 py-0.5 rounded">Permanent Record</span>
         </div>
 
-        <p className="text-xs text-graphite leading-relaxed">
-          {message || 'This action is permanent and cannot be undone on the blockchain consensus ledger. Continue?'}
+        <p id="modal-desc" className="text-xs text-[#575753] leading-relaxed">
+          {message || 'This action will be written to the blockchain consensus ledger and cannot be undone. Continue?'}
         </p>
 
         {isSubmitting && (
-          <div className="bg-amber/10 border border-amber/30 p-3 text-xs font-mono text-graphite flex items-center gap-2 animate-pulse">
-            <span className="w-3 h-3 rounded-full bg-amber inline-block"></span>
-            <span>Confirming on-chain — this may take a moment...</span>
+          <div className="bg-[#FFF9F2] border border-[#F3DFC1] p-3 rounded-lg text-xs font-mono text-[#7A4510] flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#A13D2B] animate-ping" aria-hidden="true"></span>
+            <span>Broadcasting transaction to Besu QBFT network…</span>
           </div>
         )}
 
-        <div className="bg-offwhite p-3 border border-graphite/15 text-[11px] font-mono text-slate space-y-1">
-          <div>Gas Price: 0.00 Gwei (Consortium Free)</div>
-          <div>Security Mechanism: QBFT Multi-Validator Consensus Sign-off</div>
+        <div className="bg-[#FAFAF9] p-3 rounded-lg border border-[#E8E6E1] text-[11px] font-mono text-[#71716D] space-y-1 tabular-nums">
+          <div>Gas Policy: 0.00 Gwei (Consortium Free)</div>
+          <div>Consensus: 7/7 Multi-Validator QBFT</div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-2.5 pt-2">
           <button
+            type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="border border-graphite text-graphite font-bold text-xs px-4 py-2 hover:bg-offwhite disabled:opacity-50 transition-colors"
+            className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#FAFAF9] font-medium text-xs px-4 py-2 rounded-lg disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={isSubmitting}
-            className="bg-copper text-white font-bold text-xs px-5 py-2 hover:bg-copper-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
-                Confirming On-Chain...
+                <span className="w-2 h-2 rounded-full bg-white animate-ping" aria-hidden="true"></span>
+                Confirming…
               </span>
             ) : (
-              'Confirm & Sign On-Chain'
+              'Confirm & Broadcast'
             )}
           </button>
         </div>

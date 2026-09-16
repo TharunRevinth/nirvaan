@@ -3,31 +3,61 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    background-color: #F2EFE9;
-    color: #1C1F26;
-    font-family: 'Noto Sans', sans-serif;
+  :root {
+    --bg-page: #FAFAF9;
+    --text-main: #1A1A18;
+    --border-hairline: #E8E6E1;
   }
 
-  /* Visible focus outlines for keyboard navigation accessibility */
-  *:focus-visible {
-    outline: 2px solid #B5541A;
+  html.contrast-high {
+    --bg-page: #000000;
+    --text-main: #FFFFFF;
+    --border-hairline: #FFFFFF;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Accessible focus indicators adhering to Web Interface Guidelines */
+  :focus-visible {
+    outline: 2px solid #A13D2B;
     outline-offset: 2px;
   }
+
+  /* High contrast mode overrides */
+  html.contrast-high body {
+    background-color: #000000 !important;
+    color: #FFFFFF !important;
+  }
+
+  html.contrast-high .bg-surface,
+  html.contrast-high .bg-white,
+  html.contrast-high .bg-canvas {
+    background-color: #000000 !important;
+    color: #FFFFFF !important;
+    border-color: #FFFFFF !important;
+  }
+
+  html.contrast-high table,
+  html.contrast-high th,
+  html.contrast-high td,
+  html.contrast-high input,
+  html.contrast-high select,
+  html.contrast-high textarea {
+    border-color: #FFFFFF !important;
+    color: #FFFFFF !important;
+    background-color: #000000 !important;
+  }
 }
 
-/* Custom hairline borders and zero radius enforcement */
-.hairline-border {
-  border: 1px solid rgba(28, 31, 38, 0.15);
-}
-
-.amber-flash {
-  animation: amberFlash 2s infinite;
-}
-
-@keyframes amberFlash {
-  0%, 100% { color: #C99A3E; opacity: 1; }
-  50% { color: #C99A3E; opacity: 0.6; }
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 ::-webkit-scrollbar {
@@ -35,8 +65,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F2EFE9;
+  background: #FAFAF9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3D5A73;
+  background: #D1CECA;
+  border-radius: 9999px;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: #A1A19D;
+}
+
+

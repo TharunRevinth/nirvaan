@@ -43,3 +43,15 @@ docker/ipfs-data/
 docs/
 PROJECT_ARCHITECTURE_AND_PROGRESS.md
 *.md
+!frontend/stitch_extracted/**/*.md
+
+# Temporary testing, logs & Playwright outputs
+.playwright-mcp/
+backend/.playwright-mcp/
+backend/uploads/
+contracts/slither-output.txt
+frontend/capture_minimalist_screenshots.cjs
+
+# Generated image captures & mock artifacts
+*.png
+!frontend/stitch_extracted/**/*.png

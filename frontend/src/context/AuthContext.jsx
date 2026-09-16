@@ -45,16 +45,16 @@ export function AuthProvider({ children }) {
     async function checkRegistrationOnChain() {
       if (!walletAddress) return;
       try {
-        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545", undefined, { staticNetwork: true });
         const abi = ["function registeredVendors(address) view returns (bool)"];
         const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, provider);
         const isReg = await contract.registeredVendors(walletAddress);
         setRegisteredVendors(prev => ({
           ...prev,
-          [walletAddress.toLowerCase()]: { isRegistered: isReg }
+          [walletAddress.toLowerCase()]: { isRegistered: Boolean(isReg) }
         }));
       } catch (err) {
-        console.error("Error reading vendor registration on-chain:", err);
+        console.warn("Could not read vendor registration directly from RPC node:", err.message);
       }
     }
 
@@ -124,6 +124,22 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('vendor_wallet');
   };
 
+  // Dev-only demo simulation helper (STRICTLY gated behind VITE_ENABLE_DEV_DEMO environment flag, OFF by default)
+  const isDevDemoEnabled = import.meta.env.VITE_ENABLE_DEV_DEMO === 'true';
+
+  const connectSimulatedVendorWallet = (address = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8') => {
+    if (!isDevDemoEnabled) {
+      throw new Error('Development simulation bypass is disabled. Please connect a verified Web3 wallet (MetaMask).');
+    }
+    setWalletAddress(address);
+    localStorage.setItem('vendor_wallet', address);
+    setRegisteredVendors(prev => ({
+      ...prev,
+      [address.toLowerCase()]: { isRegistered: true }
+    }));
+    return address;
+  };
+
   const registerVendorRecord = (address, vendorData) => {
     setRegisteredVendors(prev => ({
       ...prev,
@@ -149,9 +165,19 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('officer_user');
   };
 
+  const activateVendorSession = (address) => {
+    setWalletAddress(address);
+    localStorage.setItem('vendor_wallet', address);
+    localStorage.setItem('vendor_registered', 'true');
+    setRegisteredVendors(prev => ({
+      ...prev,
+      [address.toLowerCase()]: { isRegistered: true }
+    }));
+  };
+
   const isVendorAuthenticated = Boolean(walletAddress);
   const isVendorRegistered = Boolean(
-    walletAddress && registeredVendors[walletAddress.toLowerCase()]?.isRegistered
+    walletAddress && (registeredVendors[walletAddress.toLowerCase()]?.isRegistered || localStorage.getItem('vendor_registered') === 'true')
   );
   const isOfficerAuthenticated = Boolean(officerToken && officerUser);
 
@@ -163,6 +189,9 @@ export function AuthProvider({ children }) {
         registeredVendors,
         connectVendorWallet,
         disconnectVendorWallet,
+        connectSimulatedVendorWallet,
+        activateVendorSession,
+        isDevDemoEnabled,
         registerVendorRecord,
         officerToken,
         officerUser,

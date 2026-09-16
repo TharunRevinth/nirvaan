@@ -1,77 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function AccessibilityBar() {
   const [lang, setLang] = useState('en');
   const [highContrast, setHighContrast] = useState(false);
+  const [activeSize, setActiveSize] = useState('md');
 
   const toggleFontSize = (size) => {
+    setActiveSize(size);
     const root = document.documentElement;
     if (size === 'sm') root.style.fontSize = '14px';
     if (size === 'md') root.style.fontSize = '16px';
     if (size === 'lg') root.style.fontSize = '18px';
   };
 
+  useEffect(() => {
+    if (highContrast) {
+      document.documentElement.classList.add('contrast-high');
+    } else {
+      document.documentElement.classList.remove('contrast-high');
+    }
+  }, [highContrast]);
+
   return (
-    <div className="bg-graphite text-offwhite px-4 py-1 flex justify-between items-center text-xs border-b border-graphite/30">
+    <div className="bg-surface text-secondary px-6 py-1 flex justify-between items-center text-[11px] border-b border-line">
       <div>
-        {/* Working Skip to Main Content Link */}
         <a 
           href="#main-content" 
-          className="text-offwhite/80 hover:text-white underline text-[11px] focus:outline-none focus:ring-2 focus:ring-copper p-0.5"
+          className="text-muted hover:text-primary text-[11px] hover:underline focus-visible:ring-1 focus-visible:ring-oxide focus-visible:outline-none px-1 rounded transition-colors"
         >
-          Skip to Main Content
+          Skip to main content
         </a>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* Font-size +/- controls */}
-        <div className="flex items-center gap-1 border-r border-offwhite/20 pr-3">
-          <span className="text-[10px] text-offwhite/60 mr-1">Text Size:</span>
+        <div className="flex items-center gap-1 border-r border-line pr-3">
+          <span className="text-[10px] text-muted mr-1 select-none">Text size:</span>
           <button 
+            type="button"
             onClick={() => toggleFontSize('sm')} 
-            aria-label="Decrease font size"
-            className="px-1.5 py-0.5 bg-offwhite/10 hover:bg-offwhite/20 text-[10px] font-bold"
+            aria-label="Decrease font size to small"
+            className={`px-1.5 py-0.5 text-[10px] font-medium rounded border transition-colors ${
+              activeSize === 'sm' ? 'bg-primary text-white border-primary' : 'border-line hover:bg-canvas text-secondary'
+            }`}
           >
             A-
           </button>
           <button 
+            type="button"
             onClick={() => toggleFontSize('md')} 
-            aria-label="Reset font size to normal"
-            className="px-1.5 py-0.5 bg-offwhite/10 hover:bg-offwhite/20 text-[10px] font-bold"
+            aria-label="Reset font size to default"
+            className={`px-1.5 py-0.5 text-[10px] font-medium rounded border transition-colors ${
+              activeSize === 'md' ? 'bg-primary text-white border-primary' : 'border-line hover:bg-canvas text-secondary'
+            }`}
           >
             A
           </button>
           <button 
+            type="button"
             onClick={() => toggleFontSize('lg')} 
-            aria-label="Increase font size"
-            className="px-1.5 py-0.5 bg-offwhite/10 hover:bg-offwhite/20 text-[10px] font-bold"
+            aria-label="Increase font size to large"
+            className={`px-1.5 py-0.5 text-[10px] font-medium rounded border transition-colors ${
+              activeSize === 'lg' ? 'bg-primary text-white border-primary' : 'border-line hover:bg-canvas text-secondary'
+            }`}
           >
             A+
           </button>
         </div>
 
-        {/* High Contrast Toggle */}
-        <div className="flex items-center gap-1 border-r border-offwhite/20 pr-3">
-          <button 
-            onClick={() => setHighContrast(!highContrast)} 
-            aria-label="Toggle high contrast mode"
-            className="text-[11px] text-offwhite/80 hover:text-white flex items-center gap-1"
+        {/* High contrast switch */}
+        <div className="flex items-center gap-1.5 border-r border-line pr-3">
+          <button
+            type="button"
+            onClick={() => setHighContrast(!highContrast)}
+            aria-pressed={highContrast}
+            className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+              highContrast 
+                ? 'bg-primary text-white border-primary font-medium' 
+                : 'border-line text-secondary hover:bg-canvas'
+            }`}
           >
-            <span className="w-3 h-3 border border-offwhite bg-graphite inline-block"></span>
-            Contrast
+            High Contrast
           </button>
         </div>
 
-        {/* Bilingual Toggle */}
-        <div className="flex items-center gap-1">
+        {/* Bilingual Hindi/English Switcher */}
+        <div className="flex items-center">
           <select 
             value={lang} 
             onChange={(e) => setLang(e.target.value)}
-            aria-label="Select Portal Language"
-            className="bg-transparent text-offwhite border border-offwhite/20 text-xs py-0.5 px-1.5 outline-none cursor-pointer"
+            aria-label="Select language"
+            className="bg-transparent border border-line rounded px-1.5 py-0.5 text-[10px] text-secondary cursor-pointer focus-visible:outline-none focus-visible:border-oxide"
           >
-            <option value="en" className="text-graphite">English</option>
-            <option value="hi" className="text-graphite">हिन्दी</option>
+            <option value="en">English (EN)</option>
+            <option value="hi">हिन्दी (HI)</option>
           </select>
         </div>
       </div>

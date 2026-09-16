@@ -7,26 +7,23 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
   const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
   const [reason, setReason] = useState('Technical Specification Exclusion');
   const [description, setDescription] = useState('');
-  const [bondAmount] = useState('100,000');
+  const [bondAmount] = useState('1,00,000');
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
+  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0] || { id: 'TND-24-9982-A', title: 'Supply of Offshore Pipeline Valves & Actuators', appealWindowClosed: false };
 
-  // Winning vendor address mock check
-  const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732'; // Reliance Offshore Ltd
+  const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732';
   const isWinningVendor = walletAddress?.toLowerCase() === winningVendorAddress.toLowerCase();
 
   const handlePreSubmitValidation = () => {
-    // 1. Check if Winning Vendor
     if (isWinningVendor) {
       triggerToast('Ineligible: Winning bidders awarded contracts cannot file disputes against their own award.', 'error');
       return;
     }
 
-    // 2. Check if Appeal Window Closed
     if (currentTender.appealWindowClosed) {
-      triggerToast(`Dispute Window Closed: The 7-day statutory appeal window for Tender ${currentTender.id} has expired. Appeals can no longer be accepted on-chain.`, 'error');
+      triggerToast(`Dispute Window Closed: The 7-day statutory appeal window for Tender ${currentTender.id} has expired.`, 'error');
       return;
     }
 
@@ -38,69 +35,81 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
     setTimeout(() => {
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Formal Dispute filed on-chain for ${selectedTenderId}. Dispute Bond of ₹${bondAmount} locked in escrow smart contract.`, 'success');
-    }, 1800);
+      triggerToast(`Dispute filed on-chain for ${selectedTenderId}. Escrow bond of ₹${bondAmount} locked.`, 'success');
+    }, 1500);
   };
 
   return (
     <div id="main-content" className="max-w-3xl mx-auto space-y-6">
-      <div className="border-b border-graphite/15 pb-4 flex justify-between items-end">
-        <div>
-          <span className="text-xs font-mono text-slate bg-slate/10 px-2 py-0.5 border border-slate/20">
-            CVC GRIEVANCE REDRESSAL // CONTRACT DISPUTE FORM
+      {/* Header */}
+      <div className="border-b border-[#E8E6E1] pb-4 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
+        <div className="space-y-1">
+          <span className="text-[11px] font-mono font-semibold uppercase text-[#71716D] tracking-wider">
+            CVC Grievance Redressal • Statutory Appeals
           </span>
-          <h1 className="text-2xl font-bold text-graphite uppercase tracking-tight mt-2">
-            File Statutory Tender Dispute / Appeal
+          <h1 className="text-2xl font-bold text-[#1A1A18] tracking-tight">
+            File Tender Dispute &amp; Escrow Bond
           </h1>
-          <p className="text-xs text-graphite/70 mt-1">
-            Pursuant to Central Vigilance Commission (CVC) Procurement Guidelines 2026.
+          <p className="text-xs text-[#575753]">
+            Governed under Central Vigilance Commission (CVC) Procurement Guidelines.
           </p>
         </div>
-        <div className="text-right">
-          <div className="text-[10px] font-bold text-slate uppercase">Appeal Window Status:</div>
-          <div className={`font-mono text-xs font-bold ${currentTender.appealWindowClosed ? 'text-red-700 font-bold' : 'text-amber amber-flash'}`}>
-            {currentTender.appealWindowClosed ? 'EXPIRED (CLOSED)' : '⏳ 06 Days 14 Hours Remaining'}
-          </div>
+
+        <div className="text-left sm:text-right font-mono text-xs tabular-nums">
+          <span className="text-[#71716D] block">Appeal Window:</span>
+          <span className={`font-semibold ${currentTender.appealWindowClosed ? 'text-red-700' : 'text-emerald-700'}`}>
+            {currentTender.appealWindowClosed ? 'Closed (Expired)' : 'Open (06 Days Remaining)'}
+          </span>
         </div>
       </div>
 
       {isWinningVendor && (
-        <div className="bg-red-50 border border-red-300 p-4 text-xs text-red-900 font-bold">
-          🚫 Ineligible to Dispute: Your wallet address is registered as the awarded L1 Winner for this contract. Winning vendors cannot appeal their own awarded contracts.
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-xs text-red-900 font-medium">
+          Ineligible to Dispute: Your wallet is registered as the awarded L1 Winner for this contract. Winning vendors cannot appeal their own awarded contracts.
         </div>
       )}
 
-      <div className="bg-white border-l-4 border-copper p-4 text-xs space-y-1.5 hairline-border">
-        <h3 className="font-bold text-graphite uppercase">Dispute Escrow Mechanism Notice</h3>
-        <p className="text-graphite/80 leading-relaxed">
-          Filing a formal dispute triggers an automated 7-day hold on tender finalization on the smart contract. A mandatory Dispute Bond of ₹1,00,000 must be locked in the CVC Resolution Escrow. Frivolous disputes will result in bond forfeiture.
+      {/* Escrow Mechanism Note */}
+      <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-4 text-xs space-y-1">
+        <h3 className="font-semibold text-[#1A1A18] text-xs">
+          Dispute Escrow Smart Contract Mechanism
+        </h3>
+        <p className="text-[#575753] leading-relaxed">
+          Filing a dispute triggers a 7-day standstill hold on tender finalization on the blockchain. A refundable Dispute Bond of ₹ 1,00,000 is locked in escrow during CVC auditor review.
         </p>
       </div>
 
-      <div className="bg-white border border-graphite/15 p-6 space-y-6">
+      {/* Dispute Form */}
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-graphite">TARGET TENDER REFERENCE ID *</label>
+            <div className="space-y-1.5">
+              <label htmlFor="dispute-tender-select" className="text-xs font-medium text-[#1A1A18]">
+                Target Tender Reference *
+              </label>
               <select
+                id="dispute-tender-select"
                 value={selectedTenderId}
                 onChange={(e) => setSelectedTenderId(e.target.value)}
-                className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite font-bold cursor-pointer"
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
               >
                 {tenders.map(t => (
                   <option key={t.id} value={t.id}>
-                    {t.id} — {t.title} ({t.appealWindowClosed ? 'APPEAL CLOSED' : 'APPEAL OPEN'})
+                    {t.id} — {t.title} ({t.appealWindowClosed ? 'CLOSED' : 'OPEN'})
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-graphite">DISPUTE GROUND / CATEGORY *</label>
+            <div className="space-y-1.5">
+              <label htmlFor="dispute-reason-select" className="text-xs font-medium text-[#1A1A18]">
+                Dispute Ground / Category *
+              </label>
               <select
+                id="dispute-reason-select"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite font-medium cursor-pointer"
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs text-[#1A1A18] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
               >
                 <option value="Technical Specification Exclusion">Technical Specification Exclusion</option>
                 <option value="Unfair Evaluation / L1 Calculation Mismatch">Unfair Evaluation / L1 Calculation Mismatch</option>
@@ -110,43 +119,71 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-graphite">DETAILED FACTUAL GROUNDS FOR APPEAL *</label>
+          <div className="space-y-1.5">
+            <label htmlFor="dispute-grounds-input" className="text-xs font-medium text-[#1A1A18]">
+              Detailed Factual Grounds for Appeal *
+            </label>
             <textarea
+              id="dispute-grounds-input"
               required
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="State precise technical or procedural clauses breached..."
-              className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite"
+              placeholder="Specify technical or procedural clauses breached according to CVC manual…"
+              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs text-[#1A1A18] placeholder:text-[#A8A7A1] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none leading-relaxed"
             />
           </div>
 
-          <div className="bg-offwhite p-4 border border-graphite/15 flex justify-between items-center text-xs">
+          <div className="bg-[#FAFAF9] p-4 rounded-xl border border-[#E8E6E1] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div>
-              <span className="font-bold text-graphite block">Mandatory Dispute Bond Escrow:</span>
-              <span className="text-slate text-[11px]">Refundable if dispute is upheld by CVC Auditor Node</span>
+              <span className="font-semibold text-[#1A1A18] block">Mandatory Dispute Bond Escrow:</span>
+              <span className="text-[#71716D] text-[11px]">100% Refundable upon favorable CVC auditor determination</span>
             </div>
-            <span className="font-mono text-base font-bold text-copper">₹ {bondAmount} INR</span>
+            <span className="font-mono text-base font-bold text-[#1A1A18] tabular-nums">
+              ₹ {bondAmount} INR
+            </span>
           </div>
         </div>
 
-        <div className="pt-4 border-t border-graphite/15 flex justify-end">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {!description ? (
+            <span className="text-xs text-[#71716D]">
+              Note: Enter detailed factual grounds for appeal above to enable submission.
+            </span>
+          ) : currentTender.appealWindowClosed ? (
+            <span className="text-xs text-red-700">
+              Dispute window has expired for this tender.
+            </span>
+          ) : isWinningVendor ? (
+            <span className="text-xs text-red-700">
+              Awarded L1 winners cannot appeal their own award.
+            </span>
+          ) : (
+            <span className="text-xs text-emerald-800 font-medium">
+              ✓ Dispute grounds provided. Ready to submit and lock bond.
+            </span>
+          )}
+
           <button
             type="button"
             onClick={handlePreSubmitValidation}
             disabled={!description || currentTender.appealWindowClosed || isWinningVendor}
-            className="bg-copper text-white font-bold text-xs px-6 py-3 hover:bg-copper-hover disabled:opacity-50 transition-colors uppercase"
+            aria-disabled={!description || currentTender.appealWindowClosed || isWinningVendor}
+            className={`font-semibold text-xs px-6 py-2.5 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none ${
+              !description || currentTender.appealWindowClosed || isWinningVendor
+                ? 'bg-[#E8E6E1] text-[#71716D] border border-[#E8E6E1] cursor-not-allowed shadow-none'
+                : 'bg-[#A13D2B] hover:bg-[#8A3323] text-white shadow-xs cursor-pointer'
+            }`}
           >
-            File Dispute & Lock Bond On-Chain →
+            File Dispute &amp; Lock Bond On-Chain →
           </button>
         </div>
       </div>
 
       <ConfirmationModal
         isOpen={modalOpen}
-        title="Confirm Statutory Dispute Filing"
-        message={`Are you sure you want to file a formal dispute against ${selectedTenderId} and lock ₹${bondAmount} in smart contract escrow?`}
+        title="Confirm Dispute Filing"
+        message={`Are you sure you want to file a formal dispute against ${selectedTenderId} and lock ₹${bondAmount} in escrow?`}
         onConfirm={handleSubmit}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}

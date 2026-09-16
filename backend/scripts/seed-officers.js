@@ -15,12 +15,12 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'officers.json');
 
 function generateSecureRandomPassword() {
-  return 'Temp-' + crypto.randomBytes(8).toString('hex') + '!';
+  return 'Temp-' + crypto.randomBytes(6).toString('hex') + '!' + Math.floor(10 + Math.random() * 90);
 }
 
 async function seed() {
   console.log('=======================================================');
-  console.log('  SEEDING PSU OFFICER ACCOUNTS WITH BCRYPT HASHES     ');
+  console.log('  PSU OFFICER PROVISIONING: RANDOM TEMPORARY PASSWORDS  ');
   console.log('=======================================================\n');
 
   const psuList = [
@@ -45,18 +45,28 @@ async function seed() {
       psu: item.psu,
       passwordHash: hashedPassword,
       mustChangePassword: true,
-      officerId: item.officerId
+      officerId: item.officerId,
+      email: `${item.username}@${item.psu.toLowerCase()}.res.in`
     });
 
-    credentialsLog.push({ username: item.username, psu: item.psu, tempPassword });
+    credentialsLog.push({
+      PSU: item.psu,
+      OfficerID: item.officerId,
+      Username: item.username,
+      'Temporary Password': tempPassword,
+      'Status': 'Must Change On First Login'
+    });
   }
 
   fs.writeFileSync(dbPath, JSON.stringify(officers, null, 2));
 
-  console.log(`Successfully seeded ${officers.length} officer accounts in data/officers.json!\n`);
-  console.log('Generated Temporary Credentials (one-time display for initial admin provisioning):');
+  console.log(`Successfully generated and provisioned ${officers.length} officer accounts in data/officers.json!\n`);
+  console.log('Generated One-Time Temporary Credentials (securely printed for initial provisioning):');
   console.table(credentialsLog);
-  console.log('\nNote: On first login, officers must change their password before dashboard access.');
+  console.log('\n[SECURITY NOTE]: Passwords are randomly generated and hashed with bcrypt.');
+  console.log('Officers are required to establish a permanent password upon first login.');
+  console.log('To reset passwords at any time, run: npm run reset:officers\n');
 }
 
 seed().catch(console.error);
+

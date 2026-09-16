@@ -1,38 +1,51 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function GovFooter() {
   return (
-    <footer className="bg-white border-t border-graphite/15 px-6 py-6 w-full text-xs text-graphite/80 mt-auto">
-      <div className="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <footer className="bg-white border-t border-[#E8E6E1] px-6 py-6 w-full text-xs text-[#71716D] mt-auto">
+      <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="space-y-1">
-          <p className="font-bold text-graphite text-sm">
-            MINISTRY OF PETROLEUM AND NATURAL GAS, GOVERNMENT OF INDIA
+          <p className="font-semibold text-[#1A1A18] text-xs tracking-wide">
+            Ministry of Petroleum &amp; Natural Gas, Government of India
           </p>
-          <p className="text-[11px] text-graphite/70">
-            Designed, developed, and hosted by National Informatics Centre (NIC) for Indian Oil PSUs (IOCL, HPCL, BPCL, ONGC, GAIL).
-          </p>
-          <p className="text-[10px] text-slate font-mono mt-1">
-            Site last updated: 16-Aug-2026 // Consortium Blockchain Protocol V2.4
+          <p className="text-[11px] text-[#71716D] max-w-xl leading-relaxed">
+            Consortium E-Tendering &amp; Verification Platform for Indian Oil PSUs: IOCL, BPCL, HPCL, ONGC, and GAIL. Governed under Central Vigilance Commission (CVC) Procurement Directives.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-4 text-xs font-semibold">
-          <a href="#" className="hover:text-copper underline focus:outline-none focus:ring-2 focus:ring-copper p-0.5">
-            Security Policy
+        <nav aria-label="Footer Legal and Policy Links" className="flex flex-wrap items-center gap-4 text-xs font-medium text-[#71716D]">
+          <Link 
+            to="/about"
+            className="hover:text-[#1A1A18] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none rounded px-1"
+          >
+            About NIRVAAN
+          </Link>
+          <span className="text-[#E8E6E1]" aria-hidden="true">•</span>
+          <a 
+            href="#terms" 
+            onClick={(e) => e.preventDefault()}
+            className="hover:text-[#1A1A18] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none rounded px-1"
+          >
+            Terms of Procurement
           </a>
-          <span className="text-graphite/30">|</span>
-          <a href="#" className="hover:text-copper underline focus:outline-none focus:ring-2 focus:ring-copper p-0.5">
-            Terms of Use
+          <span className="text-[#E8E6E1]" aria-hidden="true">•</span>
+          <a 
+            href="#cvc-guidelines" 
+            onClick={(e) => e.preventDefault()}
+            className="hover:text-[#1A1A18] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none rounded px-1"
+          >
+            CVC Guidelines
           </a>
-          <span className="text-graphite/30">|</span>
-          <a href="#" className="hover:text-copper underline focus:outline-none focus:ring-2 focus:ring-copper p-0.5">
-            Grievance & Vigilance Portal
+          <span className="text-[#E8E6E1]" aria-hidden="true">•</span>
+          <a 
+            href="#accessibility" 
+            onClick={(e) => e.preventDefault()}
+            className="hover:text-[#1A1A18] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none rounded px-1"
+          >
+            Accessibility
           </a>
-          <span className="text-graphite/30">|</span>
-          <a href="#" className="hover:text-copper underline focus:outline-none focus:ring-2 focus:ring-copper p-0.5">
-            Accessibility Statement
-          </a>
-        </div>
+        </nav>
       </div>
     </footer>
   );

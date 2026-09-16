@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Landing({ triggerToast }) {
   const navigate = useNavigate();
-  const { connectVendorWallet, isVendorRegistered, loginOfficerSession } = useAuth();
+  const { connectVendorWallet, connectSimulatedVendorWallet, isDevDemoEnabled, isVendorRegistered, loginOfficerSession } = useAuth();
+
+  const [activeTab, setActiveTab] = useState('officer'); // 'officer' | 'vendor'
 
   // Officer Form State
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('iocl_officer');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -22,14 +24,24 @@ export default function Landing({ triggerToast }) {
     try {
       const connectedAddr = await connectVendorWallet();
       if (isVendorRegistered) {
-        triggerToast(`MetaMask Connected: ${connectedAddr.substring(0, 6)}...${connectedAddr.substring(connectedAddr.length - 4)}. Welcome to NIRVAAN Bidding Dashboard.`, 'success');
+        triggerToast(`Wallet connected: ${connectedAddr.substring(0, 6)}…${connectedAddr.substring(connectedAddr.length - 4)}`, 'success');
         navigate('/vendor/dashboard');
       } else {
-        triggerToast(`MetaMask Connected: ${connectedAddr.substring(0, 6)}...${connectedAddr.substring(connectedAddr.length - 4)}. KYC Registration required before bidding.`, 'error');
+        triggerToast(`Wallet connected. Please complete corporate KYC registration.`, 'info');
         navigate('/vendor/kyc');
       }
     } catch (err) {
-      triggerToast(err.message || 'Wallet connection failed.', 'error');
+      triggerToast(err.message || 'Wallet connection failed. Please unlock MetaMask.', 'error');
+    }
+  };
+
+  const handleSimulatedVendorConnect = () => {
+    try {
+      const demoAddr = connectSimulatedVendorWallet('0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
+      triggerToast(`Simulated vendor session connected: ${demoAddr.substring(0, 6)}…${demoAddr.substring(demoAddr.length - 4)}`, 'success');
+      navigate('/vendor/dashboard');
+    } catch (err) {
+      triggerToast(err.message, 'error');
     }
   };
 
@@ -42,30 +54,31 @@ export default function Landing({ triggerToast }) {
       const res = await fetch('http://localhost:5000/api/auth/officer-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: username.trim(), password: password.trim() })
       });
 
       const data = await res.json();
       setIsLoggingIn(false);
 
       if (!res.ok) {
-        triggerToast(data.error || 'Authentication failed.', 'error');
+        triggerToast(data.error || 'Authentication failed. Please check credentials.', 'error');
         return;
       }
 
       if (data.requirePasswordChange) {
         setTempToken(data.tempToken);
         setRequirePasswordChange(true);
-        triggerToast('First-time login detected. You must set a new password before accessing PSU Procurement Portal.', 'error');
+        triggerToast('First-time login detected. You must set a new permanent password.', 'info');
         return;
       }
 
       loginOfficerSession(data.token, data.officer);
-      triggerToast(`PSU Officer Session authenticated for ${data.officer.username} (${data.officer.psu})`, 'success');
+      triggerToast(`Signed in as ${data.officer.username} (${data.officer.psu})`, 'success');
       navigate('/psu/dashboard');
     } catch (err) {
       setIsLoggingIn(false);
-      triggerToast('Unable to connect to PSU Authentication Backend Service at http://localhost:5000', 'error');
+      console.error('Officer login error:', err);
+      triggerToast('Unable to connect to authentication server at http://localhost:5000', 'error');
     }
   };
 
@@ -96,154 +109,234 @@ export default function Landing({ triggerToast }) {
 
       setRequirePasswordChange(false);
       loginOfficerSession(data.token, data.officer);
-      triggerToast('Password updated successfully. PSU Officer Session activated.', 'success');
+      triggerToast('Password updated. Session activated.', 'success');
       navigate('/psu/dashboard');
     } catch (err) {
-      triggerToast('Password change failed.', 'error');
+      triggerToast('Password update failed.', 'error');
     }
   };
 
   return (
-    <div id="main-content" className="max-w-4xl mx-auto py-10 px-4 space-y-8">
+    <div id="main-content" className="max-w-xl mx-auto py-12 px-4 space-y-6">
+      
+      {/* Platform Title */}
       <div className="text-center space-y-2">
-        <span className="text-xs font-mono text-slate bg-slate/10 px-2 py-0.5 border border-slate/20">
-          PROJECT NIRVAAN // CVC COMPLIANT BLOCKCHAIN E-PROCUREMENT GATEWAY
-        </span>
-        <h1 className="text-3xl font-bold text-graphite uppercase tracking-tight">
-          NIRVAAN — Indian Oil PSUs Blockchain E-Tendering System
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A18] tracking-tight">
+          NIRVAAN E-Tendering
         </h1>
-        <p className="text-xs text-graphite/70 max-w-xl mx-auto leading-relaxed">
-          Nationale Indelible Record & Verification Architecture for Autonomous Negotiation. Official procurement platform for IOCL, HPCL, BPCL, ONGC, and GAIL under CVC Procurement Guidelines.
+        <p className="text-xs sm:text-sm text-[#575753]">
+          Unified e-procurement platform for Indian Oil PSUs under CVC guidelines.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Entry Point 1: PSU Officer Login */}
-        <div className="bg-white border-2 border-graphite p-6 space-y-6">
-          <div className="border-b border-graphite/15 pb-3">
-            <h2 className="font-bold text-sm text-graphite uppercase tracking-wider flex items-center gap-2">
-              🏢 PSU Authorized Officer Login
-            </h2>
-            <p className="text-[11px] text-slate mt-0.5">
-              Backend JWT Authentication for IOCL, HPCL, BPCL, ONGC, GAIL Officers
-            </p>
-          </div>
-
-          {!requirePasswordChange ? (
-            <form onSubmit={handleOfficerLogin} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-graphite">OFFICER USERNAME *</label>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. iocl_officer"
-                  className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs font-mono text-graphite"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-graphite">PASSWORD *</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite"
-                />
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isLoggingIn}
-                  className="w-full bg-graphite text-white font-bold text-xs py-3 hover:bg-slate disabled:opacity-50 transition-colors uppercase"
-                >
-                  {isLoggingIn ? 'Authenticating Credentials...' : 'Authenticate PSU Officer Session →'}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div className="bg-amber/10 border border-amber/30 p-3 text-xs text-graphite">
-                <strong className="block font-bold">First-Time Password Change Required</strong>
-                Please replace your temporary password before accessing PSU dashboard.
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-graphite">NEW PERMANENT PASSWORD *</label>
-                <input
-                  type="password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-graphite">CONFIRM NEW PASSWORD *</label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter new password"
-                  className="w-full bg-offwhite border border-graphite/30 p-2.5 text-xs text-graphite"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-copper text-white font-bold text-xs py-3 hover:bg-copper-hover transition-colors uppercase"
-              >
-                Set New Password & Activate Session →
-              </button>
-            </form>
-          )}
-
-          <div className="text-[11px] text-graphite/60 font-mono border-t border-graphite/10 pt-3">
-            Notice: Officer accounts are admin-created. Public sign-up is forbidden.
-          </div>
+      {/* Two-Path Authentication Card */}
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl shadow-xs overflow-hidden">
+        
+        {/* Role Switcher Tabs */}
+        <div className="flex border-b border-[#E8E6E1] bg-[#FAFAF9]" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'officer'}
+            onClick={() => setActiveTab('officer')}
+            className={`flex-1 py-3 px-4 text-xs font-semibold text-center transition-colors ${
+              activeTab === 'officer'
+                ? 'bg-white text-[#1A1A18] border-b-2 border-[#A13D2B] font-bold shadow-xs'
+                : 'text-[#71716D] hover:text-[#1A1A18]'
+            }`}
+          >
+            PSU Officer Sign In
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'vendor'}
+            onClick={() => setActiveTab('vendor')}
+            className={`flex-1 py-3 px-4 text-xs font-semibold text-center transition-colors ${
+              activeTab === 'vendor'
+                ? 'bg-white text-[#1A1A18] border-b-2 border-[#A13D2B] font-bold shadow-xs'
+                : 'text-[#71716D] hover:text-[#1A1A18]'
+            }`}
+          >
+            Vendor / Bidder Access
+          </button>
         </div>
 
-        {/* Entry Point 2: Vendor Wallet Connect */}
-        <div className="bg-white border-2 border-copper p-6 space-y-6">
-          <div className="border-b border-graphite/15 pb-3">
-            <h2 className="font-bold text-sm text-copper uppercase tracking-wider flex items-center gap-2">
-              🔑 Commercial Vendor Authentication
-            </h2>
-            <p className="text-[11px] text-slate mt-0.5">
-              Class-3 Web3 Cryptographic Wallet Connect for Bidders
-            </p>
-          </div>
+        <div className="p-6 sm:p-8">
+          {activeTab === 'officer' ? (
+            <div>
+              {!requirePasswordChange ? (
+                <form onSubmit={handleOfficerLogin} className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-sm font-semibold text-[#1A1A18]">
+                      Sign in with officer credentials
+                    </h2>
+                    <p className="text-xs text-[#71716D]">
+                      Authorized access for IOCL, BPCL, HPCL, ONGC, and GAIL procurement officers.
+                    </p>
+                  </div>
 
-          <div className="space-y-4">
-            <p className="text-xs text-graphite leading-relaxed">
-              Connect your authorized Web3 hardware token or MetaMask wallet. The connected wallet address acts as your cryptographically signed vendor identity on the NIRVAAN consortium blockchain network.
-            </p>
+                  <div className="space-y-1.5 pt-2">
+                    <label htmlFor="officer-username" className="text-xs font-medium text-[#1A1A18] block">
+                      Username / Officer ID
+                    </label>
+                    <input
+                      id="officer-username"
+                      name="username"
+                      type="text"
+                      required
+                      autoComplete="username"
+                      spellCheck={false}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="e.g. iocl_officer"
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2.5 text-xs text-[#1A1A18] placeholder:text-[#A8A7A1] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none transition-all"
+                    />
+                  </div>
 
-            <div className="bg-offwhite p-3 border border-graphite/15 text-xs font-mono space-y-1">
-              <div className="text-graphite font-bold">Network: NIRVAAN Consortium Besu</div>
-              <div className="text-slate text-[11px]">Chain ID: 1337 // Zero Gas Price</div>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label htmlFor="officer-password" className="text-xs font-medium text-[#1A1A18] block">
+                        Password
+                      </label>
+                      <span className="text-[11px] text-[#71716D]">Temporary or permanent</span>
+                    </div>
+                    <input
+                      id="officer-password"
+                      name="password"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2.5 text-xs text-[#1A1A18] placeholder:text-[#A8A7A1] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none transition-all"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoggingIn}
+                    className="w-full bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs py-2.5 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none mt-2"
+                  >
+                    {isLoggingIn ? 'Authenticating…' : 'Sign In as PSU Officer'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleChangePassword} className="space-y-4">
+                  <div className="bg-[#FFF9F2] border border-[#F3DFC1] rounded-lg p-3 text-xs text-[#7A4510]">
+                    <strong className="block font-semibold">First-time password reset required</strong>
+                    Please create a permanent password of at least 8 characters before proceeding.
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="new-password" className="text-xs font-medium text-[#1A1A18] block">
+                      New Password
+                    </label>
+                    <input
+                      id="new-password"
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Minimum 8 characters"
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="confirm-password" className="text-xs font-medium text-[#1A1A18] block">
+                      Confirm New Password
+                    </label>
+                    <input
+                      id="confirm-password"
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs py-2.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                  >
+                    Save Password &amp; Continue
+                  </button>
+                </form>
+              )}
             </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold text-[#1A1A18]">
+                  Commercial bidder connection
+                </h2>
+                <p className="text-xs text-[#71716D] leading-relaxed">
+                  Connect your registered Class-3 DSC cryptographic hardware token or Web3 wallet to submit sealed bids and view eligible tenders.
+                </p>
+              </div>
 
-            <button
-              onClick={handleVendorConnect}
-              className="w-full bg-copper text-white font-bold text-xs py-3 hover:bg-copper-hover transition-colors uppercase flex items-center justify-center gap-2"
-            >
-              Connect Vendor Wallet (MetaMask) →
-            </button>
-          </div>
+              <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-lg p-3.5 space-y-2 text-xs">
+                <div className="flex justify-between text-[#575753]">
+                  <span>Network</span>
+                  <span className="font-mono font-medium text-[#1A1A18]">Besu QBFT Consortium</span>
+                </div>
+                <div className="flex justify-between text-[#575753]">
+                  <span>Gas policy</span>
+                  <span className="font-mono text-[#1A1A18]">0.00 Gwei (Fixed)</span>
+                </div>
+                <div className="flex justify-between text-[#575753]">
+                  <span>Encryption standard</span>
+                  <span className="font-mono text-[#1A1A18]">Client-side Keccak-256</span>
+                </div>
+              </div>
 
-          <div className="text-[11px] text-graphite/60 font-mono border-t border-graphite/10 pt-3">
-            Unregistered Wallet? Connect to complete Mandatory Corporate KYC Registration.
-          </div>
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleVendorConnect}
+                  className="w-full bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                >
+                  Connect Wallet (MetaMask / Class-3 DSC)
+                </button>
+
+                {isDevDemoEnabled && (
+                  <button
+                    type="button"
+                    onClick={handleSimulatedVendorConnect}
+                    className="w-full bg-[#F5F4F0] border border-[#E8E6E1] text-[#575753] hover:text-[#1A1A18] font-mono text-xs py-2 rounded-lg transition-colors"
+                  >
+                    Dev-Only Simulated Vendor Session (0x7099…79C8)
+                  </button>
+                )}
+
+                <div className="text-center pt-2">
+                  <Link
+                    to="/vendor/kyc"
+                    className="text-xs text-[#71716D] hover:text-[#1A1A18] font-medium transition-colors"
+                  >
+                    New supplier? Register corporate KYC →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Quiet Link to About Page */}
+      <div className="text-center pt-2">
+        <Link
+          to="/about"
+          className="text-xs text-[#71716D] hover:text-[#1A1A18] transition-colors underline-offset-4 hover:underline"
+        >
+          About NIRVAAN &amp; Platform Architecture →
+        </Link>
+      </div>
+
     </div>
   );
 }
