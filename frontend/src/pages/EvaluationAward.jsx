@@ -2,19 +2,21 @@ import React, { useState } from 'react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', tenders = [], setTenders }) {
-  const currentTender = tenders.find(t => t.id === 'TND-24-9982-A') || tenders[0];
-  const [isAwarded, setIsAwarded] = useState(currentTender?.status === 'AWARDED');
-  const [awardData, setAwardData] = useState(currentTender ? {
+  const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
+  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0] || { id: 'TND-24-9982-A', title: 'Procurement Package' };
+
+  const isAwarded = currentTender?.status === 'AWARDED';
+  const awardData = currentTender ? {
     txHash: currentTender.awardTxHash,
     blockNumber: currentTender.awardBlock
-  } : null);
+  } : null;
 
   const [bids, setBids] = useState([
     { 
       rank: 'L1', 
       vendor: 'Reliance Offshore Logistics Ltd.', 
       vid: 'RIL-4492-X', 
-      qualified: currentTender?.status === 'AWARDED' || false, 
+      qualified: true, 
       hash: '0x8f2a71d8e903bc10294e1c2d3f4a5b6c7d8e9f0a1b2c3d4e8927189fa9b4e1c2', 
       amount: '₹ 45,20,00,000',
       complianceScore: '99.4%',
@@ -65,8 +67,9 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
     try {
       const token = localStorage.getItem('officer_token');
       const winnerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+      const onChainId = currentTender?.onChainId || 1;
 
-      const res = await fetch('http://localhost:5000/api/tenders/1/award', {
+      const res = await fetch(`http://localhost:5000/api/tenders/${onChainId}/award`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -75,7 +78,9 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
         body: JSON.stringify({
           winner: winnerAddress,
           winningBidId: 1,
-          winningBidAmount: "45.2"
+          winningBidAmount: "45.2",
+          winnerName: bids[0].vendor,
+          winningAmount: bids[0].amount
         })
       });
 
@@ -86,11 +91,9 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
 
       setIsSubmitting(false);
       setModalOpen(false);
-      setIsAwarded(true);
-      setAwardData(data);
 
       if (setTenders) {
-        setTenders(prev => prev.map(t => t.id === 'TND-24-9982-A' ? {
+        setTenders(prev => prev.map(t => (t.id === currentTender.id || String(t.onChainId) === String(onChainId)) ? {
           ...t,
           status: 'AWARDED',
           winner: bids[0].vendor,
@@ -100,7 +103,9 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
           awardTxHash: data.txHash,
           awardBlock: `Block #${data.blockNumber || 142950}`,
           complianceScore: bids[0].complianceScore,
-          deliveryTimeline: bids[0].deliveryTimeline
+          deliveryTimeline: bids[0].deliveryTimeline,
+          appealDeadline: Math.floor(Date.now() / 1000) + 7 * 86400,
+          appealWindowClosed: false
         } : t));
       }
 
@@ -127,7 +132,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
             Revealed Bids Evaluation &amp; Award
           </h1>
           <p className="text-xs text-[#575753]">
-            Tender Ref: <span className="font-mono font-semibold text-[#1A1A18]">TND-24-9982-A</span> • Offshore Pipeline Valves &amp; Actuators
+            Tender Ref: <span className="font-mono font-semibold text-[#1A1A18]">{currentTender?.id}</span> • {currentTender?.title}
           </p>
         </div>
 
@@ -135,6 +140,25 @@ export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', te
           <div>Status: <span className={`font-semibold ${isAwarded ? 'text-emerald-700' : 'text-[#1A1A18]'}`}>{isAwarded ? 'Contract Awarded' : 'Bids Unsealed'}</span></div>
           <div>Consensus: <span className="text-emerald-700 font-semibold">7/7 Nodes Attested</span></div>
         </div>
+      </div>
+
+      {/* Tender Selection Dropdown */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 border border-[#E8E6E1] rounded-xl shadow-2xs">
+        <label htmlFor="eval-tender-select" className="text-xs font-semibold text-[#1A1A18] uppercase tracking-wider font-mono">
+          Select Tender Package:
+        </label>
+        <select
+          id="eval-tender-select"
+          value={selectedTenderId}
+          onChange={(e) => setSelectedTenderId(e.target.value)}
+          className="w-full sm:w-80 bg-[#FAFAF9] border border-[#D3D1CB] rounded-lg px-3 py-1.5 text-xs font-mono font-medium text-[#1A1A18] focus:outline-none focus:ring-1 focus:ring-[#A13D2B]"
+        >
+          {tenders.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.id} — {t.title} ({t.status})
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* On-Chain Award Banner */}

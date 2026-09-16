@@ -21,10 +21,11 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   useEffect(() => {
     if (amount && salt && walletAddress) {
       try {
+        const onChainId = currentTender?.onChainId || 1;
         const saltBytes32 = ethers.encodeBytes32String(salt.substring(0, 31));
         const hash = ethers.solidityPackedKeccak256(
           ["address", "uint256", "bytes32", "uint256"],
-          [walletAddress, amount, saltBytes32, 1]
+          [walletAddress, amount, saltBytes32, onChainId]
         );
         setCommitmentHash(hash);
       } catch (err) {
@@ -33,7 +34,7 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     } else {
       setCommitmentHash('');
     }
-  }, [amount, salt, walletAddress]);
+  }, [amount, salt, walletAddress, currentTender]);
 
   const handleGenerateSalt = () => {
     const randomSalt = Array.from({ length: 12 }, () => Math.random().toString(36)[2]).join('');
@@ -110,8 +111,9 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
 
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
       const emdWei = ethers.parseEther(emdDeposited || "0.1");
+      const onChainId = currentTender?.onChainId || 1;
       const tx = await contract.submitBid(
-        1,
+        onChainId,
         bidDocumentCid,
         commitmentHash,
         { value: emdWei }
@@ -126,7 +128,9 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
 
       triggerToast(`Confirmed in Block #${receipt.blockNumber}. Sealed bid recorded on-chain.`, 'success');
 
-      const bidData = await contract.tenderBids(1, 0);
+      const count = await contract.getTenderBidsCount(onChainId);
+      const bidIdx = count > 0n ? Number(count) - 1 : 0;
+      const bidData = await contract.tenderBids(onChainId, bidIdx);
       setOnChainBidRecord({
         id: bidData.id.toString(),
         tenderId: bidData.tenderId.toString(),

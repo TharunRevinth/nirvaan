@@ -12,6 +12,7 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, 'data', 'officers.json');
+const tendersDbPath = path.join(__dirname, 'data', 'tenders.json');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,6 +32,7 @@ const serverWallet = new ethers.Wallet(SERVER_PRIVATE_KEY, provider);
 const CONTRACT_ABI = [
   "function createTender(string memory _ipfsHash, uint256 _submissionDeadline, uint256 _openingTime, uint256 _minEMD) external",
   "function awardTender(uint256 _tenderId, address _winner, uint256 _winningBidId, uint256 _winningBidAmount) external",
+  "function disputeTender(uint256 _tenderId, string memory _reasonIpfsHash) external payable",
   "function registerVendor(address _vendorAddress, bytes32 _gstinHash, bytes32 _panHash, string memory _kycIpfsHash) external",
   "function registeredVendors(address) external view returns (bool)",
   "function vendorKYC(address) external view returns (bytes32 gstinHash, bytes32 panHash, string memory kycIpfsHash, uint256 registeredAt)",
@@ -52,6 +54,21 @@ function getOfficers() {
 // Helper function to save officers
 function saveOfficers(officers) {
   fs.writeFileSync(dbPath, JSON.stringify(officers, null, 2));
+}
+
+// Helper function to read persistent tenders
+function getTenders() {
+  if (!fs.existsSync(tendersDbPath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(tendersDbPath, 'utf8'));
+  } catch (err) {
+    return [];
+  }
+}
+
+// Helper function to save persistent tenders
+function saveTenders(tenders) {
+  fs.writeFileSync(tendersDbPath, JSON.stringify(tenders, null, 2));
 }
 
 // Middleware to authenticate JWT session
@@ -249,6 +266,16 @@ function safeParseEther(val, defaultVal = "0.1") {
   }
 }
 
+// GET /api/tenders — List all persistent tenders
+app.get('/api/tenders', async (req, res) => {
+  try {
+    const list = getTenders();
+    return res.json({ tenders: list });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/tenders/create — PSU Officer Server-side Signing Relay for Tender Creation
 app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
   try {
@@ -298,12 +325,40 @@ app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
 
     const receipt = await tx.wait();
     const newCounter = await contractInstance.tenderCounter();
+    const tenderIdNum = Number(newCounter);
+    const tenderCode = req.body.id || `TND-26-${String(tenderIdNum).padStart(4, '0')}-${(req.officer.psu || 'GEN').charAt(0)}`;
+
+    const tenderRecord = {
+      id: tenderCode,
+      onChainId: tenderIdNum,
+      psu: req.officer.psu || 'IOCL',
+      category: req.body.category || 'Pipeline Infrastructure',
+      title: req.body.title || `Procurement Package #${tenderIdNum}`,
+      desc: req.body.desc || '',
+      valueCr: req.body.budget ? (Number(req.body.budget) / 10000000).toFixed(2) : '25.00',
+      minEmdAmount: Number(req.body.emd) || 100000,
+      emd: `${(Number(req.body.emd) || 100000).toLocaleString('en-IN')} INR`,
+      deadline: (req.body.deadline || req.body.submissionDeadline || '').replace('T', ' '),
+      opening: (req.body.opening || req.body.openingTime || '').replace('T', ' '),
+      isExpired: false,
+      appealWindowClosed: false,
+      status: 'OPEN',
+      cid: ipfsHash,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber
+    };
+
+    const existingTenders = getTenders();
+    const updatedTenders = [tenderRecord, ...existingTenders.filter(t => t.id !== tenderCode)];
+    saveTenders(updatedTenders);
 
     return res.json({
       success: true,
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
       tenderId: newCounter.toString(),
+      tenderIdString: tenderCode,
+      tender: tenderRecord,
       officer: req.officer.username,
       psu: req.officer.psu
     });
@@ -323,17 +378,38 @@ app.post('/api/tenders/:id/award', authenticateOfficerToken, async (req, res) =>
       return res.status(400).json({ error: 'Missing required contract award parameters.' });
     }
 
+    const onChainId = /^\d+$/.test(tenderId) ? Number(tenderId) : 1;
     const winningAmountWei = safeParseEther(winningBidAmount, "45.2");
 
     // Execute awardTender on smart contract using server wallet
     const tx = await contractInstance.awardTender(
-      tenderId,
+      onChainId,
       winner,
       winningBidId,
       winningAmountWei
     );
 
     const receipt = await tx.wait();
+
+    // Persist award in tenders.json
+    const existing = getTenders();
+    const updated = existing.map(t => {
+      if (t.id === tenderId || String(t.onChainId) === String(tenderId)) {
+        return {
+          ...t,
+          status: 'AWARDED',
+          winner: req.body.winnerName || 'Awarded Bidder',
+          winnerAddress: winner,
+          winningAmount: req.body.winningAmount || (req.body.winningBidAmount ? `₹ ${req.body.winningBidAmount} Cr` : '₹ 45.20 Cr'),
+          awardTxHash: tx.hash,
+          awardBlock: `Block #${receipt.blockNumber}`,
+          appealDeadline: Math.floor(Date.now() / 1000) + 7 * 86400,
+          appealWindowClosed: false
+        };
+      }
+      return t;
+    });
+    saveTenders(updated);
 
     return res.json({
       success: true,
@@ -346,6 +422,60 @@ app.post('/api/tenders/:id/award', authenticateOfficerToken, async (req, res) =>
   } catch (err) {
     console.error('Server-side tender award error:', err);
     return res.status(500).json({ error: err.reason || err.message || 'On-chain award relay failed.' });
+  }
+});
+
+// POST /api/tenders/:id/dispute — Vendor Dispute Relay Endpoint
+app.post('/api/tenders/:id/dispute', async (req, res) => {
+  try {
+    const tenderId = req.params.id;
+    const { reasonIpfsHash, challengerAddress, privateKey } = req.body;
+
+    // Default to Hardhat Vendor Account #2
+    const vendorKey = privateKey || "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
+    const vendorWallet = new ethers.Wallet(vendorKey, provider);
+    const contractWithVendor = new ethers.Contract(CONTRACT_ADDRESS, [
+      ...CONTRACT_ABI,
+      "function disputeTender(uint256 _tenderId, string memory _reasonIpfsHash) external payable"
+    ], vendorWallet);
+
+    const onChainId = /^\d+$/.test(tenderId) ? Number(tenderId) : 1;
+    const bondWei = ethers.parseEther("1.0");
+
+    const tx = await contractWithVendor.disputeTender(
+      onChainId,
+      reasonIpfsHash || "QmDisputeReasonDefault",
+      { value: bondWei }
+    );
+
+    const receipt = await tx.wait();
+
+    // Update in tenders.json
+    const existing = getTenders();
+    const updated = existing.map(t => {
+      if (t.id === tenderId || String(t.onChainId) === String(tenderId)) {
+        return {
+          ...t,
+          status: 'DISPUTED',
+          disputeActive: true,
+          challenger: challengerAddress || vendorWallet.address,
+          disputeTxHash: tx.hash
+        };
+      }
+      return t;
+    });
+    saveTenders(updated);
+
+    return res.json({
+      success: true,
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      tenderId,
+      bondLocked: "1.0 ETH"
+    });
+  } catch (err) {
+    console.error('Dispute relay error:', err);
+    return res.status(500).json({ error: err.reason || err.message || 'On-chain dispute submission failed.' });
   }
 });
 

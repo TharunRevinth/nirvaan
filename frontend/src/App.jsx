@@ -40,9 +40,10 @@ export default function App() {
   };
 
   // Shared Tenders Initial Data
-  const [tenders, setTenders] = useState([
+  const DEFAULT_TENDERS = [
     {
       id: 'TND-24-9982-A',
+      onChainId: 1,
       psu: 'IOCL',
       category: 'Pipeline Infrastructure',
       title: 'Expansion of Offshore Pipeline Routing & Actuator Valves',
@@ -66,6 +67,7 @@ export default function App() {
     },
     {
       id: 'TND-24-9983-B',
+      onChainId: 2,
       psu: 'ONGC',
       category: 'Heavy Machinery',
       title: 'Procurement of 15 Industrial Deepwater Drilling Rigs',
@@ -81,6 +83,7 @@ export default function App() {
     },
     {
       id: 'TND-24-9984-C',
+      onChainId: 3,
       psu: 'IOCL',
       category: 'Consulting',
       title: 'Refinery Environmental Safety Audit & Compliance Q4',
@@ -94,7 +97,70 @@ export default function App() {
       status: 'EXPIRED',
       cid: 'QmZtrL359vC2V7xW981smL2vedxjQkDDP1mXWo6uco'
     }
-  ]);
+  ];
+
+  const [tenders, setTenders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nirvaan_tenders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('LocalStorage tender load error:', e);
+    }
+    return DEFAULT_TENDERS;
+  });
+
+  // Save to localStorage on any state mutation
+  useEffect(() => {
+    try {
+      localStorage.setItem('nirvaan_tenders', JSON.stringify(tenders));
+    } catch (e) {
+      console.warn('LocalStorage tender save error:', e);
+    }
+  }, [tenders]);
+
+  // Sync across tabs via storage event listener
+  useEffect(() => {
+    const handleStorageEvent = (e) => {
+      if (e.key === 'nirvaan_tenders' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTenders(parsed);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageEvent);
+    return () => window.removeEventListener('storage', handleStorageEvent);
+  }, []);
+
+  // Sync with persistent backend API on mount
+  useEffect(() => {
+    async function syncWithServer() {
+      try {
+        const res = await fetch('http://localhost:5000/api/tenders');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tenders && Array.isArray(data.tenders) && data.tenders.length > 0) {
+            setTenders(prev => {
+              const serverIds = new Set(data.tenders.map(t => t.id));
+              const localOnly = prev.filter(t => !serverIds.has(t.id));
+              const combined = [...data.tenders, ...localOnly];
+              localStorage.setItem('nirvaan_tenders', JSON.stringify(combined));
+              return combined;
+            });
+          }
+        }
+      } catch (err) {
+        // Fall back gracefully to localStorage if offline
+        console.warn('Server tender sync standby:', err.message);
+      }
+    }
+    syncWithServer();
+  }, []);
 
   return (
     <AuthProvider>

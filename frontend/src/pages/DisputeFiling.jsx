@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, CONTRACT_ADDRESS } from '../context/AuthContext';
 
 export default function DisputeFiling({ triggerToast, tenders = [] }) {
   const { walletAddress, officerUser, isOfficerAuthenticated } = useAuth();
@@ -15,7 +16,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
 
   const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0] || { id: 'TND-24-9982-A', title: 'Supply of Offshore Pipeline Valves & Actuators', appealWindowClosed: false };
 
-  const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732';
+  const winningVendorAddress = currentTender.winnerAddress || '0xf17f52151ebef6c7334fad080c5704d77216b732';
   const isWinningVendor = walletAddress?.toLowerCase() === winningVendorAddress.toLowerCase();
 
   const handlePreSubmitValidation = () => {
@@ -32,13 +33,55 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
     setModalOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const onChainId = currentTender?.onChainId || 1;
+      let txHash = '';
+
+      if (window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const abi = [
+            "function disputeTender(uint256 _tenderId, string memory _reasonIpfsHash) external payable"
+          ];
+          const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+          const tx = await contract.disputeTender(
+            onChainId,
+            `QmDispute-${reason.substring(0, 10)}-${Date.now()}`,
+            { value: ethers.parseEther("1.0") }
+          );
+          txHash = tx.hash;
+          await tx.wait();
+        } catch (web3Err) {
+          console.warn("Direct Web3 dispute failed, attempting relay fallback:", web3Err.message);
+        }
+      }
+
+      if (!txHash) {
+        const res = await fetch(`http://localhost:5000/api/tenders/${onChainId}/dispute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reasonIpfsHash: `QmDispute-${reason.substring(0, 10)}-${Date.now()}`,
+            challengerAddress: walletAddress
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server relay for dispute failed.');
+        txHash = data.txHash;
+      }
+
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Dispute filed on-chain for ${selectedTenderId}. Escrow bond of ₹${bondAmount} locked.`, 'success');
-    }, 1500);
+      triggerToast(`Dispute filed on-chain for ${selectedTenderId}. Escrow bond of 1.0 ETH locked. Tx: ${txHash.substring(0, 18)}…`, 'success');
+    } catch (err) {
+      setIsSubmitting(false);
+      setModalOpen(false);
+      console.error("Dispute filing error:", err);
+      triggerToast(`Dispute filing error: ${err.message}`, 'error');
+    }
   };
 
   return (
