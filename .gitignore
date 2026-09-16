@@ -50,6 +50,7 @@ PROJECT_ARCHITECTURE_AND_PROGRESS.md
 backend/.playwright-mcp/
 backend/uploads/
 contracts/slither-output.txt
+test_execution_report.txt
 frontend/capture_minimalist_screenshots.cjs
 
 # Generated image captures & mock artifacts

@@ -64,8 +64,8 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
 
   it("03. Should reject bid reveal when wrong salt or amount is submitted (Commitment mismatch)", async function () {
     const block = await ethers.provider.getBlock("latest");
-    const subDeadline = block.timestamp + 10;
-    const openTime = block.timestamp + 20;
+    const subDeadline = block.timestamp + 3600;
+    const openTime = subDeadline + 300;
     const minEMD = ethers.parseEther("1.0");
 
     await contract.connect(psu).createTender("QmTenderSpec1", subDeadline, openTime, minEMD);
@@ -80,7 +80,7 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
     await contract.connect(vendor1).submitBid(1, "QmBid1", commitment, { value: minEMD });
 
     // Open bids
-    await ethers.provider.send("evm_increaseTime", [30]);
+    await ethers.provider.send("evm_increaseTime", [4000]);
     await ethers.provider.send("evm_mine");
     await contract.connect(keeper).openBids(1);
 
@@ -144,8 +144,8 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
 
   it("06. Should allow dispute filing within 7-day appeal window with required bond", async function () {
     const block = await ethers.provider.getBlock("latest");
-    const subDeadline = block.timestamp + 10;
-    const openTime = block.timestamp + 20;
+    const subDeadline = block.timestamp + 3600;
+    const openTime = subDeadline + 300;
     const minEMD = ethers.parseEther("1.0");
 
     await contract.connect(psu).createTender("QmTenderSpec1", subDeadline, openTime, minEMD);
@@ -158,7 +158,7 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
     );
     await contract.connect(vendor1).submitBid(1, "QmBid1", commitment, { value: minEMD });
 
-    await ethers.provider.send("evm_increaseTime", [30]);
+    await ethers.provider.send("evm_increaseTime", [4000]);
     await ethers.provider.send("evm_mine");
     await contract.connect(keeper).openBids(1);
     await contract.connect(vendor1).revealBid(1, 0, amount, salt);
@@ -176,8 +176,8 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
 
   it("07. Should reject dispute filing after the 7-day appeal window has expired", async function () {
     const block = await ethers.provider.getBlock("latest");
-    const subDeadline = block.timestamp + 10;
-    const openTime = block.timestamp + 20;
+    const subDeadline = block.timestamp + 3600;
+    const openTime = subDeadline + 300;
     const minEMD = ethers.parseEther("1.0");
 
     await contract.connect(psu).createTender("QmTenderSpec1", subDeadline, openTime, minEMD);
@@ -190,7 +190,7 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
     );
     await contract.connect(vendor1).submitBid(1, "QmBid1", commitment, { value: minEMD });
 
-    await ethers.provider.send("evm_increaseTime", [30]);
+    await ethers.provider.send("evm_increaseTime", [4000]);
     await ethers.provider.send("evm_mine");
     await contract.connect(keeper).openBids(1);
     await contract.connect(vendor1).revealBid(1, 0, amount, salt);
@@ -208,8 +208,8 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
 
   it("08. Should prevent winning vendor from filing a dispute against their own award", async function () {
     const block = await ethers.provider.getBlock("latest");
-    const subDeadline = block.timestamp + 10;
-    const openTime = block.timestamp + 20;
+    const subDeadline = block.timestamp + 3600;
+    const openTime = subDeadline + 300;
     const minEMD = ethers.parseEther("1.0");
 
     await contract.connect(psu).createTender("QmTenderSpec1", subDeadline, openTime, minEMD);
@@ -222,7 +222,7 @@ describe("OilTenderingV1 Contract Unit Tests", function () {
     );
     await contract.connect(vendor1).submitBid(1, "QmBid1", commitment, { value: minEMD });
 
-    await ethers.provider.send("evm_increaseTime", [30]);
+    await ethers.provider.send("evm_increaseTime", [4000]);
     await ethers.provider.send("evm_mine");
     await contract.connect(keeper).openBids(1);
     await contract.connect(vendor1).revealBid(1, 0, amount, salt);
