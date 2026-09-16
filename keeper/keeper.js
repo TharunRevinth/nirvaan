@@ -11,11 +11,14 @@ const RPC_URL = process.env.RPC_URL || process.env.BESU_RPC_URL || 'http://127.0
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || '10000', 10);
 
-// Dedicated Keeper Private Key (Hardhat Account #4)
-// Distinct from PSU Officer (Account #0 / #1) and Vendors (Account #2 / #3)
-const KEEPER_PRIVATE_KEY =
-  process.env.KEEPER_PRIVATE_KEY ||
-  '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a';
+// Dedicated Keeper Private Key
+// Must be configured via environment variable (e.g. keeper/.env)
+if (!process.env.KEEPER_PRIVATE_KEY) {
+  console.error('\n[FATAL ERROR] KEEPER_PRIVATE_KEY environment variable is missing.');
+  console.error('Please configure KEEPER_PRIVATE_KEY in keeper/.env before starting the keeper service.\n');
+  process.exit(1);
+}
+const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY;
 
 const CONTRACT_ABI = [
   'function keeperAddress() external view returns (address)',

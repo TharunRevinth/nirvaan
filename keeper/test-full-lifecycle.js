@@ -24,17 +24,32 @@ async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForStatus(tenderId, targetStatus, maxSeconds = 30) {
+  const start = Date.now();
+  while ((Date.now() - start) / 1000 < maxSeconds) {
+    const t = await contract.tenders(tenderId);
+    if (Number(t.status) === targetStatus) {
+      return t;
+    }
+    await sleep(2000);
+  }
+  return await contract.tenders(tenderId);
+}
+
 async function run() {
   console.log('======================================================================');
   console.log(' STEP 1: PSU Officer Creates New Tender on Chain');
   console.log('======================================================================');
 
-  const b1 = await provider.getBlock('latest');
-  const submissionDeadline = b1.timestamp + 60;   // 1 minute
-  const openingTime = b1.timestamp + 120;         // 2 minutes (in future)
+  // Synchronize node clock
+  await provider.send('evm_mine', []);
+  const b1 = await provider.send('eth_getBlockByNumber', ['latest', false]);
+  const now = parseInt(b1.timestamp, 16);
+  const submissionDeadline = now + 600;         // 10 minutes in future
+  const openingTime = submissionDeadline + 300; // 15 minutes in future
   const minEMD = ethers.parseEther('0.05');
 
-  console.log(`Current Block Timestamp: ${b1.timestamp}`);
+  console.log(`Current Block Timestamp: ${now}`);
   console.log(`Setting submissionDeadline: ${submissionDeadline}`);
   console.log(`Setting openingTime:        ${openingTime}`);
 
@@ -57,17 +72,15 @@ async function run() {
   console.log('\n======================================================================');
   console.log(' STEP 2: Fast-Forward Time Past openingTime (Simulating Viva Trigger)');
   console.log('======================================================================');
-  const jump1 = (openingTime - b1.timestamp) + 15; // Past openingTime
+  const jump1 = 1000; // Jump past openingTime
   console.log(`Fast-forwarding clock by ${jump1} seconds...`);
   await provider.send('evm_increaseTime', [jump1]);
   await provider.send('evm_mine', []);
 
-  const b2 = await provider.getBlock('latest');
-  console.log(`New Block Timestamp: ${b2.timestamp} (openingTime was ${openingTime})`);
-  console.log('Waiting 12 seconds for Keeper poll cycle to detect and trigger openBids()...');
-  await sleep(12000);
-
-  tender = await contract.tenders(tenderId);
+  const b2 = await provider.send('eth_getBlockByNumber', ['latest', false]);
+  console.log(`New Block Timestamp: ${parseInt(b2.timestamp, 16)} (openingTime was ${openingTime})`);
+  console.log('Waiting for Keeper service to detect and trigger openBids()...');
+  tender = await waitForStatus(tenderId, 3, 25);
   console.log(`Tender #${tenderId} Status after Keeper: ${tender.status} (Expected: 3 = UnderEvaluation)`);
   if (Number(tender.status) !== 3) {
     throw new Error(`Expected status 3 (UnderEvaluation), got ${tender.status}`);
@@ -98,12 +111,10 @@ async function run() {
   await provider.send('evm_increaseTime', [sevenDays]);
   await provider.send('evm_mine', []);
 
-  const b3 = await provider.getBlock('latest');
-  console.log(`New Block Timestamp: ${b3.timestamp} (appealDeadline was ${tender.appealDeadline})`);
-  console.log('Waiting 12 seconds for Keeper poll cycle to detect and trigger finalizeTender()...');
-  await sleep(12000);
-
-  tender = await contract.tenders(tenderId);
+  const b3 = await provider.send('eth_getBlockByNumber', ['latest', false]);
+  console.log(`New Block Timestamp: ${parseInt(b3.timestamp, 16)} (appealDeadline was ${tender.appealDeadline})`);
+  console.log('Waiting for Keeper service to detect and trigger finalizeTender()...');
+  tender = await waitForStatus(tenderId, 7, 25);
   console.log(`Tender #${tenderId} Status after Keeper: ${tender.status} (Expected: 7 = Finalized)`);
   if (Number(tender.status) !== 7) {
     throw new Error(`Expected status 7 (Finalized), got ${tender.status}`);
