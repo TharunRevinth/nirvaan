@@ -633,9 +633,19 @@ app.get('/api/ipfs/:cid', (req, res) => {
 });
 
 // Start Express Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`PSU Officer Authentication & Blockchain Relay Server running on http://localhost:${PORT}`);
   console.log(`Relay Server Wallet Address: ${serverWallet.address}`);
   console.log(`Smart Contract Address: ${CONTRACT_ADDRESS}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n[FATAL ERROR] Port ${PORT} is already in use by another running instance of node server.js.`);
+    console.error(`An active server process is already running. To stop it, run:\n  fuser -k ${PORT}/tcp\n`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });
 
