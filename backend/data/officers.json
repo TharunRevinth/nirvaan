@@ -3,7 +3,7 @@
     "id": "1",
     "username": "iocl_officer",
     "psu": "IOCL",
-    "passwordHash": "$2a$10$ijvQy65r2fXZxvynOHm6PO2Tmr9Qrs5Ks9A6bnNjNX23tWS4ApIpa",
+    "passwordHash": "$2a$10$vDzUHW8D5UeUJN/P1nB.ZuuFZx.JJgu2RSp2IbmbNiFRfk4sfU6rS",
     "mustChangePassword": false,
     "officerId": "88-X92-IOC",
     "email": "iocl_officer@iocl.res.in"
@@ -12,7 +12,7 @@
     "id": "2",
     "username": "bpcl_officer",
     "psu": "BPCL",
-    "passwordHash": "$2a$10$s10eOq7qZIOvLZdD7jluf.9U1s.o5IYhv5H80M1j2eDpzAOK/tJOq",
+    "passwordHash": "$2a$10$Jx/No8Zmtz631dKy5IOY4uRnla5.w2OW5IXLS/kslLKN7dFDpLnHe",
     "mustChangePassword": true,
     "officerId": "91-Y44-BPC",
     "email": "bpcl_officer@bpcl.res.in"
@@ -21,7 +21,7 @@
     "id": "3",
     "username": "hpcl_officer",
     "psu": "HPCL",
-    "passwordHash": "$2a$10$S0lfaJeeNhNbIU7qN5x8Iuf1FEmiwUZcl4n1lvw8ba.IT5/hSu4G2",
+    "passwordHash": "$2a$10$hcqGDGZ6T7qcgkXKw.eZN.De0B.cxi9MsZnLDIyn/NxXAmq5MtYey",
     "mustChangePassword": true,
     "officerId": "74-Z12-HPC",
     "email": "hpcl_officer@hpcl.res.in"
@@ -30,7 +30,7 @@
     "id": "4",
     "username": "ongc_officer",
     "psu": "ONGC",
-    "passwordHash": "$2a$10$FvETHxgjB5fBWqVJFHkT6e5AChPx6aeHPVJl5zKopSpyqrtS.GrqG",
+    "passwordHash": "$2a$10$d8QNvhR7aFEydqGMZdTc8enfdBwKo7AJuoslQbVjrZUN713QlHpZu",
     "mustChangePassword": true,
     "officerId": "63-K88-ONG",
     "email": "ongc_officer@ongc.res.in"
@@ -39,7 +39,7 @@
     "id": "5",
     "username": "gail_officer",
     "psu": "GAIL",
-    "passwordHash": "$2a$10$6IUq97QVgW1DjnnWfEZy5OslY2E.qo6jCP/A9kH6VyFYgBbT8jka.",
+    "passwordHash": "$2a$10$zbSMrzFpWlXnSZPdRUlx9uBWo3XSaMgLCNRx4Djl//1fvVW46bzGq",
     "mustChangePassword": true,
     "officerId": "52-M33-GAI",
     "email": "gail_officer@gail.res.in"

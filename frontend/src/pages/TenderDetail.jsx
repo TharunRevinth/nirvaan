@@ -2,12 +2,14 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import ChainOfCustodyTimeline from '../components/ChainOfCustodyTimeline';
 import { useAuth } from '../context/AuthContext';
+import { isTenderDeadlineOver } from '../utils/tenderUtils';
 
 export default function TenderDetail({ tenders }) {
   const { id } = useParams();
   const { walletAddress, officerUser } = useAuth();
   
   const tender = tenders.find(t => t.id === id) || tenders[0];
+  const isDeadlineOver = isTenderDeadlineOver(tender);
 
   const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732';
   const isWinningVendor = walletAddress?.toLowerCase() === winningVendorAddress.toLowerCase() && tender.status === 'AWARDED';
@@ -45,13 +47,19 @@ export default function TenderDetail({ tenders }) {
             )
           )}
 
-          {!officerUser && !tender.isExpired && (
+          {!officerUser && !isDeadlineOver && !tender.isExpired && (
             <Link
               to="/vendor/submit-bid"
               className="bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs px-4 py-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
             >
               Submit Sealed Bid →
             </Link>
+          )}
+
+          {!officerUser && (isDeadlineOver || tender.isExpired) && tender.status !== 'AWARDED' && (
+            <span className="bg-amber-50 text-amber-900 border border-amber-200 text-xs font-mono font-medium px-3.5 py-2 rounded-lg">
+              Bidding Closed • Under Evaluation
+            </span>
           )}
 
           {officerUser && (
@@ -67,7 +75,7 @@ export default function TenderDetail({ tenders }) {
 
       {/* Signature Element: Chain of Custody Timeline */}
       <ChainOfCustodyTimeline 
-        currentStage={tender.status === 'AWARDED' ? 4 : tender.isExpired ? 3 : 1} 
+        currentStage={tender.status === 'AWARDED' ? 4 : (isDeadlineOver || tender.isExpired) ? 3 : 1} 
       />
 
       {/* Official Contract Award & Winner Announcement (L1 Determination) */}

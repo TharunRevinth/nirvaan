@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth, CONTRACT_ADDRESS } from '../context/AuthContext';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
+import { isTenderDeadlineOver } from '../utils/tenderUtils';
 
 export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
@@ -17,6 +18,7 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const [onChainBidRecord, setOnChainBidRecord] = useState(null);
 
   const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
+  const isCurrentTenderClosed = currentTender?.isExpired || isTenderDeadlineOver(currentTender);
 
   useEffect(() => {
     if (amount && salt && walletAddress) {
@@ -47,8 +49,8 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
       return;
     }
 
-    if (currentTender?.isExpired) {
-      triggerToast(`Bidding Deadline Passed: Tender ${currentTender.id} is closed.`, 'error');
+    if (isCurrentTenderClosed) {
+      triggerToast(`Bidding Deadline Passed: Tender ${currentTender.id} is closed for bid submissions.`, 'error');
       return;
     }
 
@@ -191,11 +193,15 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
               onChange={(e) => setSelectedTenderId(e.target.value)}
               className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
             >
-              {tenders.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.id} — {t.title} ({t.status || 'OPEN'})
-                </option>
-              ))}
+              {tenders.map((t) => {
+                const isOver = isTenderDeadlineOver(t);
+                const statusLabel = t.status === 'AWARDED' ? 'AWARDED' : isOver ? 'BIDS CLOSED' : (t.status || 'OPEN');
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.id} — {t.title} ({statusLabel})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -300,20 +306,31 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
           </div>
 
           <div className="space-y-2">
+            {isCurrentTenderClosed && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-center space-y-1">
+                <span className="text-xs font-semibold text-amber-900 block">
+                  Bidding Period Concluded
+                </span>
+                <p className="text-[11px] text-amber-800">
+                  Submission deadline for Tender {currentTender?.id} has expired ({currentTender?.deadline}). Bids are now locked for evaluation.
+                </p>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handlePreSubmitValidation}
-              disabled={!commitmentHash || !walletAddress || !bidDocumentCid}
-              aria-disabled={!commitmentHash || !walletAddress || !bidDocumentCid}
+              disabled={isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid}
+              aria-disabled={isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid}
               className={`w-full font-semibold text-xs py-3 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none flex items-center justify-center gap-2 ${
-                !commitmentHash || !walletAddress || !bidDocumentCid
+                isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid
                   ? 'bg-[#E8E6E1] text-[#71716D] border border-[#E8E6E1] cursor-not-allowed shadow-none'
                   : 'bg-[#A13D2B] hover:bg-[#8A3323] text-white shadow-xs cursor-pointer'
               }`}
             >
-              Submit Sealed Bid via MetaMask →
+              {isCurrentTenderClosed ? 'Submission Period Concluded (Under Evaluation)' : 'Submit Sealed Bid via MetaMask →'}
             </button>
-            {(!commitmentHash || !walletAddress || !bidDocumentCid) && (
+            {(!commitmentHash || !walletAddress || !bidDocumentCid) && !isCurrentTenderClosed && (
               <p className="text-[11px] text-[#71716D] text-center">
                 {!walletAddress ? 'Connect wallet to proceed.' : !bidDocumentCid ? 'Upload encrypted bid PDF to enable.' : 'Enter bid amount and salt to generate hash.'}
               </p>

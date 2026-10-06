@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { isTenderDeadlineOver } from '../utils/tenderUtils';
 
 export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelectedPSU }) {
   const { officerUser, walletAddress, selectedPSU } = useAuth();
@@ -15,10 +16,22 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   const filtered = tenders.filter(t => {
+    const isDeadlineOver = isTenderDeadlineOver(t);
     // Officers are strictly tenant-locked to their own PSU's tenders
     const matchPSU = isOfficer ? t.psu === officerPSU : (localPsuFilter === 'ALL' || t.psu === localPsuFilter);
     const matchCat = categoryFilter === 'ALL' || t.category === categoryFilter;
-    const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
+    
+    let matchStatus = true;
+    if (statusFilter === 'OPEN') {
+      matchStatus = t.status === 'OPEN' && !isDeadlineOver;
+    } else if (statusFilter === 'EVALUATION') {
+      matchStatus = isDeadlineOver && t.status !== 'AWARDED';
+    } else if (statusFilter === 'CLOSING SOON') {
+      matchStatus = t.status === 'CLOSING SOON';
+    } else if (statusFilter === 'AWARDED') {
+      matchStatus = t.status === 'AWARDED';
+    }
+
     const matchSearch = t.id.toLowerCase().includes(search.toLowerCase()) || 
                         t.title.toLowerCase().includes(search.toLowerCase()) ||
                         t.category.toLowerCase().includes(search.toLowerCase());
@@ -121,7 +134,8 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
             className="bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-xs text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none cursor-pointer font-medium"
           >
             <option value="ALL">All Statuses</option>
-            <option value="OPEN">Open</option>
+            <option value="OPEN">Open (Active Bidding)</option>
+            <option value="EVALUATION">Under Evaluation / Bids Closed</option>
             <option value="CLOSING SOON">Closing Soon</option>
             <option value="AWARDED">Awarded</option>
           </select>
@@ -151,102 +165,125 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                   </td>
                 </tr>
               ) : (
-                filtered.map((t) => (
-                  <tr key={t.id} className="hover:bg-[#FAFAF9] transition-colors group">
-                    <td className="p-3.5 font-mono font-medium text-[#1A1A18] tabular-nums">{t.id}</td>
-                    <td className="p-3.5">
-                      <span className="px-2 py-0.5 rounded bg-[#F5F4F0] border border-[#E8E6E1] font-semibold text-[#1A1A18] text-[11px]">
-                        {t.psu}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-[#1A1A18] flex items-center gap-2">
-                        <span>{t.title}</span>
-                        {t.status === 'AWARDED' && (
-                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-mono font-semibold">
-                            AWARDED
+                filtered.map((t) => {
+                  const isDeadlineOver = isTenderDeadlineOver(t);
+                  return (
+                    <tr key={t.id} className="hover:bg-[#FAFAF9] transition-colors group">
+                      <td className="p-3.5 font-mono font-medium text-[#1A1A18] tabular-nums">{t.id}</td>
+                      <td className="p-3.5">
+                        <span className="px-2 py-0.5 rounded bg-[#F5F4F0] border border-[#E8E6E1] font-semibold text-[#1A1A18] text-[11px]">
+                          {t.psu}
+                        </span>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-semibold text-[#1A1A18] flex items-center gap-2">
+                          <span>{t.title}</span>
+                          {t.status === 'AWARDED' ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-mono font-semibold">
+                              AWARDED
+                            </span>
+                          ) : isDeadlineOver ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-mono font-semibold">
+                              UNDER EVALUATION
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-[11px] text-[#71716D] flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span>{t.category}</span>
+                          {t.winner && (
+                            <>
+                              <span>•</span>
+                              <span className="text-emerald-900 font-semibold">Winner: {t.winner} ({t.winningAmount || `₹ ${t.valueCr} Cr`})</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3.5 font-mono font-semibold text-right text-[#1A1A18] tabular-nums">{t.valueCr}</td>
+                      <td className="p-3.5 font-mono tabular-nums">
+                        {t.status === 'AWARDED' ? (
+                          <span className="font-semibold text-emerald-800 flex items-center gap-1.5 text-[11px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            <span>Awarded (Standstill)</span>
+                          </span>
+                        ) : isDeadlineOver ? (
+                          <div className="flex flex-col gap-0.5 text-[11px]">
+                            <span className="font-semibold text-amber-800 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                              <span>Bids Closed (Evaluation)</span>
+                            </span>
+                            <span className="text-[10px] text-[#71716D] font-mono">{t.deadline}</span>
+                          </div>
+                        ) : t.status === 'CLOSING SOON' ? (
+                          <span className="font-medium text-amber-700 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" aria-hidden="true"></span>
+                            <span>{t.deadline}</span>
+                          </span>
+                        ) : (
+                          <span className="font-medium text-emerald-800 flex items-center gap-1.5 text-[11px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            <span>{t.deadline}</span>
                           </span>
                         )}
-                      </div>
-                      <div className="text-[11px] text-[#71716D] flex flex-wrap items-center gap-1.5 mt-0.5">
-                        <span>{t.category}</span>
-                        {t.winner && (
-                          <>
-                            <span>•</span>
-                            <span className="text-emerald-900 font-semibold">Winner: {t.winner} ({t.winningAmount || `₹ ${t.valueCr} Cr`})</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3.5 font-mono font-semibold text-right text-[#1A1A18] tabular-nums">{t.valueCr}</td>
-                    <td className="p-3.5 font-mono tabular-nums">
-                      {t.status === 'AWARDED' ? (
-                        <span className="font-semibold text-emerald-800 flex items-center gap-1.5 text-[11px]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                          <span>Awarded (Standstill)</span>
-                        </span>
-                      ) : t.status === 'CLOSING SOON' ? (
-                        <span className="font-medium text-amber-700 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" aria-hidden="true"></span>
-                          <span>{t.deadline}</span>
-                        </span>
-                      ) : (
-                        <span className="text-[#575753]">{t.deadline}</span>
-                      )}
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {isOfficer ? (
-                          <>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isOfficer ? (
+                            <>
+                              <Link
+                                to={`/tenders/${t.id}`}
+                                className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                              >
+                                {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                              </Link>
+                              {t.status !== 'AWARDED' && (
+                                <Link
+                                  to="/psu/evaluation"
+                                  className="bg-[#1A1A18] hover:bg-black text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                                >
+                                  Evaluate →
+                                </Link>
+                              )}
+                            </>
+                          ) : isVendor ? (
+                            <>
+                              <Link
+                                to={`/tenders/${t.id}`}
+                                className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none ${
+                                  t.status === 'AWARDED'
+                                    ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 focus-visible:ring-emerald-600'
+                                    : 'border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] focus-visible:ring-[#A13D2B]'
+                                }`}
+                              >
+                                {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                              </Link>
+                              {t.status !== 'AWARDED' && !isDeadlineOver && !t.isExpired && (
+                                <Link
+                                  to="/vendor/submit-bid"
+                                  className="bg-[#A13D2B] hover:bg-[#8A3323] text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                                >
+                                  Bid
+                                </Link>
+                              )}
+                              {t.status !== 'AWARDED' && (isDeadlineOver || t.isExpired) && (
+                                <span className="border border-[#E8E6E1] bg-[#F5F4F0] text-[#71716D] px-2 py-1 rounded text-[11px] font-mono font-medium">
+                                  Closed
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            /* Public / Unauthenticated visitor: NO Bid button */
                             <Link
                               to={`/tenders/${t.id}`}
-                              className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+                              className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-3 py-1.5 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
                             >
-                              {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                              {t.status === 'AWARDED' ? 'Award Details →' : 'View Details'}
                             </Link>
-                            {t.status === 'OPEN' && (
-                              <Link
-                                to="/psu/evaluation"
-                                className="bg-[#1A1A18] hover:bg-black text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-                              >
-                                Evaluate →
-                              </Link>
-                            )}
-                          </>
-                        ) : isVendor ? (
-                          <>
-                            <Link
-                              to={`/tenders/${t.id}`}
-                              className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                                t.status === 'AWARDED'
-                                  ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 focus-visible:ring-emerald-600'
-                                  : 'border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] focus-visible:ring-[#A13D2B]'
-                              }`}
-                            >
-                              {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
-                            </Link>
-                            {t.status !== 'AWARDED' && !t.isExpired && (
-                              <Link
-                                to="/vendor/submit-bid"
-                                className="bg-[#A13D2B] hover:bg-[#8A3323] text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-                              >
-                                Bid
-                              </Link>
-                            )}
-                          </>
-                        ) : (
-                          /* Public / Unauthenticated visitor: NO Bid button */
-                          <Link
-                            to={`/tenders/${t.id}`}
-                            className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-3 py-1.5 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-                          >
-                            {t.status === 'AWARDED' ? 'Award Details →' : 'View Details'}
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

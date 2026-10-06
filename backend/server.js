@@ -266,11 +266,28 @@ function safeParseEther(val, defaultVal = "0.1") {
   }
 }
 
-// GET /api/tenders — List all persistent tenders
+function isDeadlinePassed(deadlineStr) {
+  if (!deadlineStr) return false;
+  const raw = String(deadlineStr).replace(/\(EXPIRED\)/i, '').trim();
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(raw)) return false;
+  const clean = raw.replace(' ', 'T');
+  const d = new Date(clean);
+  return !isNaN(d.getTime()) && d.getTime() <= Date.now();
+}
+
+// GET /api/tenders — List all persistent tenders with dynamic deadline evaluation
 app.get('/api/tenders', async (req, res) => {
   try {
     const list = getTenders();
-    return res.json({ tenders: list });
+    const evaluated = list.map(t => {
+      const isPast = isDeadlinePassed(t.deadline);
+      return {
+        ...t,
+        isExpired: Boolean(t.isExpired || isPast),
+        bidsClosed: Boolean(isPast)
+      };
+    });
+    return res.json({ tenders: evaluated });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
