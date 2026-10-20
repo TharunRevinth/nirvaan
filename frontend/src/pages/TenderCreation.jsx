@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 
 function toDatetimeLocal(date) {
   const pad = (n) => String(n).padStart(2, '0');
@@ -130,8 +131,12 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('officer_token');
+
+      if (!ipfsCid) {
+        throw new Error('Tender technical specification document must be uploaded to IPFS first.');
+      }
       
-      const res = await fetch('http://localhost:5000/api/tenders/create', {
+      const res = await fetch(`${API_URL}/api/tenders/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,11 +150,11 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
           submissionDeadline: deadline,
           opening,
           openingTime: opening,
-          emd: emd || "500000",
-          minEMD: emd ? (Number(emd) > 50 ? "0.1" : emd) : "0.1",
+          emd: emd || "0.1",
+          minEMD: emd || "0.1",
           budget: budget || "45000000",
-          ipfsCid: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc",
-          ipfsHash: ipfsCid || "QmDefaultTenderSpecHash112233445566778899aabbcc"
+          ipfsCid: ipfsCid,
+          ipfsHash: ipfsCid
         })
       });
 

@@ -1,14 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { CONTRACT_ADDRESS, RPC_URL, CHAIN_ID, CHAIN_ID_HEX, API_URL } from '../config';
+
+export { CONTRACT_ADDRESS, CHAIN_ID_HEX as REQUIRED_CHAIN_ID_HEX };
 
 const AuthContext = createContext();
 
-// Contract Address deployed to local RPC node
-export const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-export const REQUIRED_CHAIN_ID_HEX = "0x7a69"; // 31337 in hex
-
 export function AuthProvider({ children }) {
-  // Vendor State (Real Wallet-Based via window.ethereum)
   const [walletAddress, setWalletAddress] = useState(() => localStorage.getItem('vendor_wallet') || '');
   const [networkError, setNetworkError] = useState('');
   const [registeredVendors, setRegisteredVendors] = useState({});
@@ -21,6 +19,24 @@ export function AuthProvider({ children }) {
   });
 
   const [selectedPSU, setSelectedPSU] = useState('IOCL');
+
+  // Verify officer session with backend API on mount
+  useEffect(() => {
+    if (!officerToken) return;
+    async function verifyOfficerSession() {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${officerToken}` }
+        });
+        if (!res.ok) {
+          logoutOfficerSession();
+        }
+      } catch (e) {
+        // API offline
+      }
+    }
+    verifyOfficerSession();
+  }, []);
 
   // Real MetaMask Account Listener
   useEffect(() => {
@@ -40,12 +56,15 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Check on-chain vendor registration when wallet address changes
+  // Read REAL on-chain vendor registration when wallet address changes (NOT trusting localStorage)
   useEffect(() => {
     async function checkRegistrationOnChain() {
-      if (!walletAddress) return;
+      if (!walletAddress || !CONTRACT_ADDRESS) return;
       try {
-        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545", undefined, { staticNetwork: true });
+        const provider = window.ethereum
+          ? new ethers.BrowserProvider(window.ethereum)
+          : new ethers.JsonRpcProvider(RPC_URL, undefined, { staticNetwork: true });
+
         const abi = ["function registeredVendors(address) view returns (bool)"];
         const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, provider);
         const isReg = await contract.registeredVendors(walletAddress);
@@ -73,37 +92,37 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      // 1. Check Network Chain ID (31337)
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-      if (chainId !== REQUIRED_CHAIN_ID_HEX && parseInt(chainId, 16) !== 31337) {
+      const numericChainId = parseInt(chainId, 16);
+
+      if (numericChainId !== CHAIN_ID && chainId !== CHAIN_ID_HEX) {
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
-            params: [{ chainId: REQUIRED_CHAIN_ID_HEX }],
+            params: [{ chainId: CHAIN_ID_HEX }],
           });
         } catch (switchError) {
-          // If network is not added to MetaMask, request adding it
           if (switchError.code === 4902) {
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [
                 {
-                  chainId: REQUIRED_CHAIN_ID_HEX,
-                  chainName: 'Local NIRVAAN Hardhat Node',
-                  rpcUrls: ['http://127.0.0.1:8545'],
-                  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                  chainId: CHAIN_ID_HEX,
+                  chainName: CHAIN_ID === 11155111 ? 'Sepolia Testnet' : 'NIRVAAN Network',
+                  rpcUrls: [RPC_URL || 'https://rpc.sepolia.org'],
+                  nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+                  blockExplorerUrls: ['https://sepolia.etherscan.io'],
                 },
               ],
             });
           } else {
-            const errStr = `Incorrect Network: Connected to chain ${chainId}. Please switch MetaMask network to Local NIRVAAN RPC (http://127.0.0.1:8545, Chain ID 31337).`;
+            const errStr = `Incorrect Network: Connected to chain ${chainId}. Please switch MetaMask network to Chain ID ${CHAIN_ID}.`;
             setNetworkError(errStr);
             throw new Error(errStr);
           }
         }
       }
 
-      // 2. Request Account Access via window.ethereum
       const provider = new ethers.BrowserProvider(window.ethereum);
       const accounts = await provider.send('eth_requestAccounts', []);
       if (!accounts || accounts.length === 0) {
@@ -125,30 +144,6 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('vendor_wallet');
   };
 
-  // Dev-only demo simulation helper (STRICTLY gated behind VITE_ENABLE_DEV_DEMO environment flag, OFF by default)
-  const isDevDemoEnabled = import.meta.env.VITE_ENABLE_DEV_DEMO === 'true';
-
-  const connectSimulatedVendorWallet = (address = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8') => {
-    if (!isDevDemoEnabled) {
-      throw new Error('Development simulation bypass is disabled. Please connect a verified Web3 wallet (MetaMask).');
-    }
-    logoutOfficerSession();
-    setWalletAddress(address);
-    localStorage.setItem('vendor_wallet', address);
-    setRegisteredVendors(prev => ({
-      ...prev,
-      [address.toLowerCase()]: { isRegistered: true }
-    }));
-    return address;
-  };
-
-  const registerVendorRecord = (address, vendorData) => {
-    setRegisteredVendors(prev => ({
-      ...prev,
-      [address.toLowerCase()]: { ...vendorData, isRegistered: true }
-    }));
-  };
-
   // Officer Functions
   const loginOfficerSession = (token, officerData) => {
     setOfficerToken(token);
@@ -156,10 +151,8 @@ export function AuthProvider({ children }) {
     if (officerData?.psu) {
       setSelectedPSU(officerData.psu);
     }
-    // Strict session isolation: Clear any vendor wallet
     setWalletAddress('');
     localStorage.removeItem('vendor_wallet');
-    localStorage.removeItem('vendor_registered');
     localStorage.setItem('officer_token', token);
     localStorage.setItem('officer_user', JSON.stringify(officerData));
   };
@@ -172,20 +165,15 @@ export function AuthProvider({ children }) {
   };
 
   const activateVendorSession = (address) => {
-    // Strict session isolation: Clear any officer session
     logoutOfficerSession();
     setWalletAddress(address);
     localStorage.setItem('vendor_wallet', address);
-    localStorage.setItem('vendor_registered', 'true');
-    setRegisteredVendors(prev => ({
-      ...prev,
-      [address.toLowerCase()]: { isRegistered: true }
-    }));
   };
 
+  // State flags: KYC state read strictly from chain truth
   const isVendorAuthenticated = Boolean(walletAddress);
   const isVendorRegistered = Boolean(
-    walletAddress && (registeredVendors[walletAddress.toLowerCase()]?.isRegistered || localStorage.getItem('vendor_registered') === 'true')
+    walletAddress && registeredVendors[walletAddress.toLowerCase()]?.isRegistered
   );
   const isOfficerAuthenticated = Boolean(officerToken && officerUser);
 
@@ -197,10 +185,7 @@ export function AuthProvider({ children }) {
         registeredVendors,
         connectVendorWallet,
         disconnectVendorWallet,
-        connectSimulatedVendorWallet,
         activateVendorSession,
-        isDevDemoEnabled,
-        registerVendorRecord,
         officerToken,
         officerUser,
         loginOfficerSession,

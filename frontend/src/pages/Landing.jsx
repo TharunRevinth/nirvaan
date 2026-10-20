@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 import NirvaanLogo from '../components/NirvaanLogo';
 
 export default function Landing({ triggerToast }) {
@@ -38,7 +39,11 @@ export default function Landing({ triggerToast }) {
 
   const handleSimulatedVendorConnect = () => {
     try {
-      const demoAddr = connectSimulatedVendorWallet('0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
+      const devAddress = import.meta.env.VITE_DEV_VENDOR_ADDRESS;
+      if (!devAddress) {
+        throw new Error('VITE_DEV_VENDOR_ADDRESS is not configured in environment.');
+      }
+      const demoAddr = connectSimulatedVendorWallet(devAddress);
       triggerToast(`Simulated vendor session connected: ${demoAddr.substring(0, 6)}…${demoAddr.substring(demoAddr.length - 4)}`, 'success');
       navigate('/vendor/dashboard');
     } catch (err) {
@@ -52,7 +57,7 @@ export default function Landing({ triggerToast }) {
     setIsLoggingIn(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/officer-login', {
+      const res = await fetch(`${API_URL}/api/auth/officer-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password: password.trim() })
@@ -79,7 +84,7 @@ export default function Landing({ triggerToast }) {
     } catch (err) {
       setIsLoggingIn(false);
       console.error('Officer login error:', err);
-      triggerToast('Unable to connect to authentication server at http://localhost:5000', 'error');
+      triggerToast(`Unable to connect to authentication server at ${API_URL}`, 'error');
     }
   };
 
@@ -96,7 +101,7 @@ export default function Landing({ triggerToast }) {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/change-password', {
+      const res = await fetch(`${API_URL}/api/auth/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tempToken, newPassword })
@@ -307,13 +312,13 @@ export default function Landing({ triggerToast }) {
                   Connect Wallet (MetaMask / Class-3 DSC)
                 </button>
 
-                {isDevDemoEnabled && (
+                {isDevDemoEnabled && import.meta.env.VITE_DEV_VENDOR_ADDRESS && (
                   <button
                     type="button"
                     onClick={handleSimulatedVendorConnect}
                     className="w-full bg-[#F5F4F0] border border-[#E8E6E1] text-[#575753] hover:text-[#1A1A18] font-mono text-xs py-2 rounded-lg transition-colors"
                   >
-                    Dev-Only Simulated Vendor Session (0x7099…79C8)
+                    Dev-Only Simulated Vendor Session
                   </button>
                 )}
 

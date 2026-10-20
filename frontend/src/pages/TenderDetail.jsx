@@ -8,11 +8,27 @@ export default function TenderDetail({ tenders }) {
   const { id } = useParams();
   const { walletAddress, officerUser } = useAuth();
   
-  const tender = tenders.find(t => t.id === id) || tenders[0];
+  const tender = tenders.find(t => String(t.id) === String(id) || String(t.onChainId) === String(id));
+  if (!tender) {
+    return (
+      <div id="main-content" className="max-w-xl mx-auto py-12 text-center space-y-4">
+        <h2 className="text-lg font-bold text-[#1A1A18]">Tender Not Found</h2>
+        <p className="text-xs text-[#71716D]">No tender matching reference "{id}" exists in the consortium registry.</p>
+        <Link to="/tenders" className="inline-block bg-[#A13D2B] text-white text-xs font-semibold px-4 py-2 rounded-lg">
+          Back to Tender Register
+        </Link>
+      </div>
+    );
+  }
   const isDeadlineOver = isTenderDeadlineOver(tender);
 
-  const winningVendorAddress = '0xf17f52151ebef6c7334fad080c5704d77216b732';
-  const isWinningVendor = walletAddress?.toLowerCase() === winningVendorAddress.toLowerCase() && tender.status === 'AWARDED';
+  const winningVendorAddress = tender.winnerAddress || tender.winner || '';
+  const isWinningVendor = Boolean(
+    walletAddress && 
+    winningVendorAddress && 
+    walletAddress.toLowerCase() === winningVendorAddress.toLowerCase() && 
+    tender.status === 'AWARDED'
+  );
 
   return (
     <div id="main-content" className="space-y-6">
@@ -64,7 +80,7 @@ export default function TenderDetail({ tenders }) {
 
           {officerUser && (
             <Link
-              to="/psu/evaluation"
+              to={`/psu/evaluation?tender=${tender.id}`}
               className="bg-[#A13D2B] hover:bg-[#8A3323] text-white font-semibold text-xs px-4 py-2 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
             >
               Evaluation &amp; Award Console →
@@ -97,17 +113,17 @@ export default function TenderDetail({ tenders }) {
             <div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 shadow-2xs">
               <span className="text-[#71716D] block text-[11px] font-medium">Selected L1 Winner:</span>
               <span className="font-bold text-[#1A1A18] text-sm block mt-0.5">
-                {tender.winner || 'Reliance Offshore Logistics Ltd.'}
+                {tender.winner || 'Award Recorded On-Chain'}
               </span>
               <span className="text-[10px] font-mono text-[#71716D] block mt-0.5">
-                VID: {tender.winnerVid || 'RIL-4492-X'} • Escrow: VERIFIED
+                VID: {tender.winnerVid || (tender.winnerAddress ? tender.winnerAddress.substring(0, 10) + '…' : 'N/A')} • Escrow: VERIFIED
               </span>
             </div>
 
             <div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 shadow-2xs">
               <span className="text-[#71716D] block text-[11px] font-medium">Winning Commercial Quote:</span>
               <span className="font-mono text-base font-bold text-emerald-800 block mt-0.5 tabular-nums">
-                {tender.winningAmount || '₹ 45,20,00,000'}
+                {tender.winningAmount || (tender.lowestBid ? `${tender.lowestBid} ETH` : 'Awarded')}
               </span>
               <span className="text-[10px] text-[#71716D] block mt-0.5">
                 Rank: L1 (Lowest Responsive Bidder)
@@ -117,20 +133,20 @@ export default function TenderDetail({ tenders }) {
             <div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 shadow-2xs">
               <span className="text-[#71716D] block text-[11px] font-medium">Technical Compliance:</span>
               <span className="font-mono text-base font-bold text-[#1A1A18] block mt-0.5">
-                {tender.complianceScore || '99.4%'} <span className="text-xs font-normal text-emerald-700">✓ Qualified</span>
+                {tender.complianceScore || 'Qualified'} <span className="text-xs font-normal text-emerald-700">✓ Qualified</span>
               </span>
               <span className="text-[10px] text-[#71716D] block mt-0.5">
-                Timeline: {tender.deliveryTimeline || '14 Months'}
+                Timeline: {tender.deliveryTimeline || 'Per NIT Terms'}
               </span>
             </div>
 
             <div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 shadow-2xs">
               <span className="text-[#71716D] block text-[11px] font-medium">On-Chain Award Hash:</span>
-              <span className="font-mono text-[11px] font-semibold text-[#1A1A18] block mt-0.5 truncate" title={tender.awardTxHash || '0x6e7b2a9f148c023d5e8901ba72018274619b02716b4e1c2d3f4a5b6c7d8e9f0a'}>
-                {(tender.awardTxHash || '0x6e7b2a9f148c023d5e8901ba72018274619b02716b4e1c2d3f4a5b6c7d8e9f0a').substring(0, 16)}…
+              <span className="font-mono text-[11px] font-semibold text-[#1A1A18] block mt-0.5 truncate" title={tender.awardTxHash || 'Recorded on Blockchain'}>
+                {tender.awardTxHash ? `${tender.awardTxHash.substring(0, 16)}…` : 'Recorded on Blockchain'}
               </span>
               <span className="text-[10px] font-mono text-emerald-800 block mt-0.5">
-                {tender.awardBlock || 'Block #142,950'} • Mined on Consortium
+                {tender.awardBlock || 'Consortium Block'} • Mined on Consortium
               </span>
             </div>
           </div>
@@ -145,14 +161,14 @@ export default function TenderDetail({ tenders }) {
           </h2>
 
           <p className="text-xs text-[#575753] leading-relaxed">
-            {tender.desc || 'Comprehensive supply and turnkey maintenance contract for industrial grade hydrocarbon pipelines, motorized actuators, and high-pressure cryogenic valve manifolds. Fully compliant with Bureau of Indian Standards (BIS) and CVC E-Procurement Directives.'}
+            {tender.desc || 'No detailed scope description provided.'}
           </p>
 
           <div className="space-y-2 pt-2">
             <h3 className="font-semibold text-xs text-[#1A1A18]">IPFS Specification Dossier</h3>
             <div className="bg-[#FAFAF9] p-3.5 rounded-lg border border-[#E8E6E1] text-xs font-mono space-y-1.5 tabular-nums">
               <div className="break-all text-[#575753]">
-                IPFS CID: <span className="text-[#1A1A18] font-bold">{tender.cid || 'QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco'}</span>
+                IPFS CID: <span className="text-[#1A1A18] font-bold">{tender.cid || 'Not Anchored'}</span>
               </div>
               <div className="text-[#71716D]">
                 Document: <span className="text-[#1A1A18] font-medium">technical_specifications_v2.4.pdf</span> (4.8 MB)

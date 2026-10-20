@@ -3,16 +3,12 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import db from '../db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, '..', 'data');
-
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-const dbPath = path.join(dataDir, 'officers.json');
+const jsonPath = path.join(dataDir, 'officers.json');
 
 function generateSecureRandomPassword() {
   return 'Temp-' + crypto.randomBytes(6).toString('hex') + '!' + Math.floor(10 + Math.random() * 90);
@@ -34,10 +30,18 @@ async function seed() {
   const officers = [];
   const credentialsLog = [];
 
+  // Clear existing officers in SQLite
+  db.exec('DELETE FROM officers');
+  const insertStmt = db.prepare(`
+    INSERT INTO officers (id, username, psu, password_hash, must_change_password, officer_id, email, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
   for (let i = 0; i < psuList.length; i++) {
     const item = psuList[i];
     const tempPassword = generateSecureRandomPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const nowIso = new Date().toISOString();
 
     officers.push({
       id: String(i + 1),
@@ -49,6 +53,17 @@ async function seed() {
       email: `${item.username}@${item.psu.toLowerCase()}.res.in`
     });
 
+    insertStmt.run(
+      String(i + 1),
+      item.username,
+      item.psu,
+      hashedPassword,
+      1,
+      item.officerId,
+      `${item.username}@${item.psu.toLowerCase()}.res.in`,
+      nowIso
+    );
+
     credentialsLog.push({
       PSU: item.psu,
       OfficerID: item.officerId,
@@ -58,15 +73,13 @@ async function seed() {
     });
   }
 
-  fs.writeFileSync(dbPath, JSON.stringify(officers, null, 2));
+  fs.writeFileSync(jsonPath, JSON.stringify(officers, null, 2));
 
-  console.log(`Successfully generated and provisioned ${officers.length} officer accounts in data/officers.json!\n`);
-  console.log('Generated One-Time Temporary Credentials (securely printed for initial provisioning):');
+  console.log(`Successfully provisioned ${officers.length} officer accounts in SQLite DB and data/officers.json!\n`);
+  console.log('Generated One-Time Temporary Credentials:');
   console.table(credentialsLog);
   console.log('\n[SECURITY NOTE]: Passwords are randomly generated and hashed with bcrypt.');
-  console.log('Officers are required to establish a permanent password upon first login.');
-  console.log('To reset passwords at any time, run: npm run reset:officers\n');
+  console.log('Officers are required to establish a permanent password upon first login.\n');
 }
 
 seed().catch(console.error);
-

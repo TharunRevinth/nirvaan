@@ -28,6 +28,9 @@ backend/dist/
 # Docker volumes & local data
 docker/besu-data/
 docker/ipfs-data/
+docker/key
+backend/data/*.db*
+backend/data/*.sqlite*
 
 # OS / Editor files
 .DS_Store
@@ -39,20 +42,14 @@ docker/ipfs-data/
 .idea/
 .vscode/
 
-# Documentation
-docs/
-PROJECT_ARCHITECTURE_AND_PROGRESS.md
-*.md
-!frontend/stitch_extracted/**/*.md
-
-# Temporary testing, logs & Playwright outputs
+# Temporary testing, logs & local uploads
 .playwright-mcp/
 backend/.playwright-mcp/
 backend/uploads/
 contracts/slither-output.txt
 test_execution_report.txt
-frontend/capture_minimalist_screenshots.cjs
 
-# Generated image captures & mock artifacts
+# Screenshots & generated document reports
+docs/
 *.png
 !frontend/stitch_extracted/**/*.png

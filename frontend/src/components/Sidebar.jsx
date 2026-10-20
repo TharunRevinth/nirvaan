@@ -21,13 +21,16 @@ export default function Sidebar() {
     { label: 'Active Tender Register', path: '/psu/dashboard' },
     { label: 'Notice Inviting Tender (NIT)', path: '/psu/create-tender' },
     { label: 'Bid Evaluation & Award', path: '/psu/evaluation' },
+    { label: 'CVC Dispute Resolution', path: '/cvc/disputes' },
   ];
 
   const vendorLinks = [
     { label: 'Tender Browse', path: '/vendor/dashboard' },
     { label: 'Corporate KYC Registration', path: '/vendor/kyc' },
     { label: 'Sealed Bid Submission', path: '/vendor/submit-bid' },
+    { label: 'Bid Reveal (Stage 2)', path: '/vendor/reveal' },
     { label: 'Dispute Filing', path: '/vendor/dispute' },
+    { label: 'EMD / Escrow Withdrawals', path: '/vendor/withdraw' },
   ];
 
   const publicLinks = [
@@ -154,7 +157,7 @@ export default function Sidebar() {
             <span>CVC Directives Compliant</span>
           </div>
           <p className="leading-relaxed">Consortium Helpdesk: 1800-11-2024</p>
-          <p className="font-mono text-[10px] mt-0.5 text-[#71716D] tabular-nums">QBFT Consensus: 7/7 Nodes</p>
+          <p className="font-mono text-[10px] mt-0.5 text-[#71716D] tabular-nums">QBFT Enterprise Consensus</p>
         </div>
       </aside>
     </>

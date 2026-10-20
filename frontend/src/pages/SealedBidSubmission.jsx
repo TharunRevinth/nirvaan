@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { useAuth, CONTRACT_ADDRESS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
+import { CONTRACT_ADDRESS, API_URL } from '../config';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
+import { encryptFileClientSide } from '../utils/crypto';
 import { isTenderDeadlineOver } from '../utils/tenderUtils';
+import { ensureCorrectChain } from '../utils/chain';
 
 export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
-  const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
-  const [amount, setAmount] = useState('45200000');
-  const [salt, setSalt] = useState('SecretSalt123');
+  const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || '');
+  const [amount, setAmount] = useState('');
+  const [salt, setSalt] = useState('');
+  const [saltDownloaded, setSaltDownloaded] = useState(false);
   const [emdDeposited, setEmdDeposited] = useState('0.1');
   const [commitmentHash, setCommitmentHash] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -18,16 +22,22 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const [onChainBidRecord, setOnChainBidRecord] = useState(null);
 
   const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
-  const isCurrentTenderClosed = currentTender?.isExpired || isTenderDeadlineOver(currentTender);
+  const isCurrentTenderClosed = currentTender ? (currentTender.isExpired || isTenderDeadlineOver(currentTender)) : false;
 
+  // Keccak256 commitment calculation with 32-byte salt (no truncation)
   useEffect(() => {
-    if (amount && salt && walletAddress) {
+    if (amount && salt && walletAddress && currentTender?.onChainId) {
       try {
-        const onChainId = currentTender?.onChainId || 1;
-        const saltBytes32 = ethers.encodeBytes32String(salt.substring(0, 31));
+        const onChainId = currentTender.onChainId;
+        const amountWei = ethers.parseEther(String(amount).trim());
+        let saltBytes32 = salt.trim();
+        if (!saltBytes32.startsWith('0x') || saltBytes32.length !== 66) {
+          saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltBytes32));
+        }
+
         const hash = ethers.solidityPackedKeccak256(
           ["address", "uint256", "bytes32", "uint256"],
-          [walletAddress, amount, saltBytes32, onChainId]
+          [walletAddress, amountWei, saltBytes32, onChainId]
         );
         setCommitmentHash(hash);
       } catch (err) {
@@ -38,9 +48,43 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     }
   }, [amount, salt, walletAddress, currentTender]);
 
+  // Generate 32-byte cryptographically secure salt using window.crypto.getRandomValues
   const handleGenerateSalt = () => {
-    const randomSalt = Array.from({ length: 12 }, () => Math.random().toString(36)[2]).join('');
-    setSalt('Salt-' + randomSalt);
+    const bytes = window.crypto.getRandomValues(new Uint8Array(32));
+    const hex = '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    setSalt(hex);
+    setSaltDownloaded(false);
+    triggerToast('Generated 32-byte cryptographic salt. Download backup before submitting.', 'info');
+  };
+
+  // Download exportable Salt Receipt (Mandatory before submission)
+  const handleDownloadSaltReceipt = () => {
+    if (!amount || !salt) {
+      triggerToast('Please provide commercial quote and generate salt first.', 'error');
+      return;
+    }
+
+    const receipt = {
+      tenderId: currentTender?.id,
+      onChainId: currentTender?.onChainId,
+      vendorAddress: walletAddress,
+      bidAmountEth: amount,
+      salt: salt,
+      commitmentHash: commitmentHash,
+      bidDocumentCid: bidDocumentCid,
+      timestamp: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nirvaan-salt-receipt-tender-${currentTender?.onChainId || 'bid'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setSaltDownloaded(true);
+    triggerToast('Cryptographic Salt Receipt downloaded. Keep this file safe for bid opening.', 'success');
   };
 
   const handlePreSubmitValidation = () => {
@@ -50,7 +94,12 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     }
 
     if (isCurrentTenderClosed) {
-      triggerToast(`Bidding Deadline Passed: Tender ${currentTender.id} is closed for bid submissions.`, 'error');
+      triggerToast(`Bidding Deadline Passed: Tender ${currentTender?.id} is closed for bid submissions.`, 'error');
+      return;
+    }
+
+    if (!saltDownloaded) {
+      triggerToast('Mandatory: You must download your Cryptographic Salt Receipt before submitting your bid.', 'error');
       return;
     }
 
@@ -69,14 +118,11 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
     setIsUploading(true);
 
     try {
-      const result = await uploadDocumentToIpfs(file);
+      // Client-side hardware AES-256-GCM encryption before upload
+      const { encryptedFile } = await encryptFileClientSide(file);
+      const result = await uploadDocumentToIpfs(encryptedFile);
       setBidDocumentCid(result.hash);
-      const sourceLabel = result.source === 'kubo-ipfs-node' || result.source === 'direct-kubo-node'
-        ? 'IPFS Node'
-        : result.source === 'backend-relay' || result.source === 'local-vault'
-          ? 'Secure Vault'
-          : 'Cryptographic Multihash';
-      triggerToast(`Bid document encrypted & anchored (${sourceLabel}). CID: ${result.hash}`, 'success');
+      triggerToast(`Bid document encrypted client-side (AES-256-GCM) & uploaded. CID: ${result.hash}`, 'success');
     } catch (err) {
       console.error('IPFS bid upload error:', err);
       triggerToast(`Bid upload failed: ${err.message}`, 'error');
@@ -95,15 +141,15 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
         throw new Error("Please upload an encrypted bid document PDF first.");
       }
 
-      let signer;
-      if (window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        signer = await provider.getSigner();
-      } else {
-        // Fallback for automated browser environments without extension
-        const rpcProvider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-        signer = new ethers.Wallet("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", rpcProvider);
+      if (!currentTender?.onChainId) {
+        throw new Error("Invalid tender package selected.");
       }
+
+      // Check and enforce wallet chain ID
+      await ensureCorrectChain();
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
 
       const abi = [
         "function submitBid(uint256 _tenderId, string memory _encryptedBidIpfs, bytes32 _bidCommitment) external payable",
@@ -113,7 +159,8 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
 
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
       const emdWei = ethers.parseEther(emdDeposited || "0.1");
-      const onChainId = currentTender?.onChainId || 1;
+      const onChainId = currentTender.onChainId;
+
       const tx = await contract.submitBid(
         onChainId,
         bidDocumentCid,
@@ -143,6 +190,26 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
         submissionTime: new Date(Number(bidData.submissionTime) * 1000).toLocaleString()
       });
 
+      // Synchronize bid record to backend API
+      try {
+        await fetch(`${API_URL}/api/tenders/${currentTender.onChainId}/bids`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenderId: currentTender.onChainId,
+            vendor: `Registered Supplier (${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)})`,
+            vid: `VEN-${walletAddress.slice(2, 6).toUpperCase()}-X`,
+            vendorAddress: walletAddress,
+            amount: amount,
+            hash: commitmentHash,
+            cid: bidDocumentCid,
+            qualified: false
+          })
+        });
+      } catch (postErr) {
+        console.warn('Backend sync standby:', postErr);
+      }
+
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);
@@ -159,217 +226,166 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
             Commercial Bidding • Commit-Reveal Protocol
           </span>
           <h1 className="text-2xl font-bold text-[#1A1A18] tracking-tight mt-1">
-            Submit Sealed Financial Bid
+            Submit Sealed Encrypted Bid
           </h1>
-          <p className="text-xs text-[#575753] mt-0.5">
-            Connected Wallet: <span className="font-mono text-[#1A1A18] font-medium">{walletAddress || 'Not Connected'}</span>
+          <p className="text-xs text-[#575753] mt-1">
+            Zero-knowledge commitment scheme with on-chain cryptographic verification.
           </p>
         </div>
-      </div>
 
-      {/* Security Standard Note */}
-      <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-4 text-xs space-y-1">
-        <h3 className="font-semibold text-[#1A1A18] text-xs">
-          Client-Side Cryptographic Commitment
-        </h3>
-        <p className="text-[#575753] leading-relaxed">
-          Your commercial quote is salted and hashed in your local browser using Solidity Keccak-256 before broadcast. Plaintext numbers never touch the network before the official public reveal.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7 bg-white border border-[#E8E6E1] rounded-2xl p-6 space-y-4 shadow-xs">
-          <h2 className="font-semibold text-xs uppercase tracking-wider text-[#1A1A18] border-b border-[#E8E6E1] pb-2">
-            Target Tender &amp; Parameters
-          </h2>
-
-          <div className="space-y-1.5">
-            <label htmlFor="target-tender-select" className="text-xs font-medium text-[#1A1A18]">
-              Target Tender Package *
-            </label>
-            <select
-              id="target-tender-select"
-              value={selectedTenderId}
-              onChange={(e) => setSelectedTenderId(e.target.value)}
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] font-medium cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-            >
-              {tenders.map((t) => {
-                const isOver = isTenderDeadlineOver(t);
-                const statusLabel = t.status === 'AWARDED' ? 'AWARDED' : isOver ? 'BIDS CLOSED' : (t.status || 'OPEN');
-                return (
-                  <option key={t.id} value={t.id}>
-                    {t.id} — {t.title} ({statusLabel})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="bid-amount-input" className="text-xs font-medium text-[#1A1A18]">Commercial Bid Amount (INR ₹) *</label>
-            <input
-              id="bid-amount-input"
-              type="number"
-              inputMode="numeric"
-              placeholder="e.g. 45200000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#1A1A18] font-semibold text-right focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="emd-deposited-input" className="text-xs font-medium text-[#1A1A18]">EMD Deposited (ETH) *</label>
-            <input
-              id="emd-deposited-input"
-              type="text"
-              value={emdDeposited}
-              onChange={(e) => setEmdDeposited(e.target.value)}
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono tabular-nums text-[#1A1A18] text-right focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-            />
-            <span className="text-[11px] text-[#71716D]">
-              Minimum Required EMD: 0.1 ETH
-            </span>
-          </div>
-
-          <div className="space-y-1.5">
-            <label htmlFor="bid-ipfs-file-input" className="text-xs font-medium text-[#1A1A18]">Encrypted Bid Document (IPFS Anchor) *</label>
-            <div className="border border-dashed border-[#E8E6E1] bg-[#FAFAF9] rounded-xl p-4 text-center space-y-1.5">
-              <input 
-                type="file" 
-                id="bid-ipfs-file-input"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleIpfsBidFileUpload}
-                className="sr-only" 
-              />
-              <label 
-                htmlFor="bid-ipfs-file-input"
-                className="cursor-pointer inline-block bg-white border border-[#E8E6E1] text-[#1A1A18] hover:bg-[#F5F4F0] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    document.getElementById('bid-ipfs-file-input')?.click();
-                  }
-                }}
-              >
-                {isUploading ? 'Uploading to IPFS…' : 'Select Encrypted Bid PDF'}
-              </label>
-              {selectedFileName && (
-                <p className="text-xs text-[#575753]">Selected: {selectedFileName}</p>
-              )}
-            </div>
-            {bidDocumentCid ? (
-              <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 text-xs font-mono text-emerald-900 flex justify-between items-center">
-                <span>CID: <strong className="font-bold select-all">{bidDocumentCid}</strong></span>
-                <span className="text-emerald-700 font-bold">[READY]</span>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center">
-              <label htmlFor="salt-input" className="text-xs font-medium text-[#1A1A18]">Secret Salt String *</label>
-              <button
-                type="button"
-                onClick={handleGenerateSalt}
-                className="text-xs font-medium text-[#A13D2B] hover:underline focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none rounded"
-              >
-                Generate Salt
-              </button>
-            </div>
-            <input
-              id="salt-input"
-              type="text"
-              spellCheck={false}
-              value={salt}
-              onChange={(e) => setSalt(e.target.value)}
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
-            />
-          </div>
+        <div className="text-left sm:text-right font-mono text-xs">
+          <span className="text-[#71716D] block">Connected Wallet:</span>
+          <span className="font-semibold text-[#1A1A18] truncate block max-w-xs">{walletAddress || 'Not Connected'}</span>
         </div>
+      </div>
 
-        <div className="lg:col-span-5 bg-white border border-[#E8E6E1] rounded-2xl p-6 space-y-4 flex flex-col justify-between shadow-xs">
-          <div className="space-y-3">
-            <div className="border-b border-[#E8E6E1] pb-2 flex justify-between items-center text-xs">
-              <span className="font-semibold text-[#1A1A18]">Commitment Hash Preview</span>
-              <span className="text-[#71716D] font-mono text-[11px]">Keccak-256</span>
+      {isCurrentTenderClosed && (
+        <div className="bg-red-50 border border-red-200 text-red-900 rounded-xl p-4 text-xs font-medium">
+          Bidding Window Closed: The submission deadline for this tender package has expired. New sealed bids will be rejected by smart contract logic.
+        </div>
+      )}
+
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 sm:p-8 space-y-6 shadow-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Form Inputs */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1A1A18]">Select Tender Package *</label>
+              <select
+                value={selectedTenderId}
+                onChange={(e) => setSelectedTenderId(e.target.value)}
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+              >
+                {tenders.map(t => (
+                  <option key={t.id} value={t.id}>
+                    #{t.onChainId} — {t.id} ({t.title})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="bg-[#FAFAF9] p-3.5 rounded-xl border border-[#E8E6E1] font-mono text-xs text-[#1A1A18] break-all min-h-[120px] flex items-center justify-center text-center">
-              {commitmentHash || 'AWAITING_INPUT…'}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1A1A18]">Commercial Bid Quote (in ETH) *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 0.45"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+              />
             </div>
 
-            <p className="text-[11px] text-[#71716D] leading-relaxed">
-              This commitment hash is the immutable cryptographic fingerprint of your bid.
-            </p>
-          </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-medium text-[#1A1A18]">Secret Salt (32 Bytes Cryptographic Hex) *</label>
+                <button
+                  type="button"
+                  onClick={handleGenerateSalt}
+                  className="text-[11px] text-[#A13D2B] hover:underline cursor-pointer"
+                >
+                  Generate 32-Byte Salt
+                </button>
+              </div>
+              <input
+                type="text"
+                required
+                placeholder="Click Generate to produce 32-byte secure salt"
+                value={salt}
+                onChange={(e) => {
+                  setSalt(e.target.value);
+                  setSaltDownloaded(false);
+                }}
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+              />
+            </div>
 
-          <div className="space-y-2">
-            {isCurrentTenderClosed && (
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 text-center space-y-1">
-                <span className="text-xs font-semibold text-amber-900 block">
-                  Bidding Period Concluded
-                </span>
-                <p className="text-[11px] text-amber-800">
-                  Submission deadline for Tender {currentTender?.id} has expired ({currentTender?.deadline}). Bids are now locked for evaluation.
+            {/* Mandatory Salt Receipt Download Button */}
+            {salt && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-amber-900">
+                    {saltDownloaded ? '✔ Salt Backup Confirmed' : '⚠ Action Required: Backup Salt'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSaltReceipt}
+                    className="bg-amber-900 hover:bg-amber-950 text-white text-[11px] font-medium px-3 py-1 rounded transition-colors cursor-pointer"
+                  >
+                    Download Receipt (.json)
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  You must download this file before submitting. Without this salt, you cannot reveal your commercial bid and your EMD deposit will be forfeited.
                 </p>
               </div>
             )}
 
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1A1A18]">EMD Escrow Deposit (ETH) *</label>
+              <input
+                type="text"
+                required
+                value={emdDeposited}
+                onChange={(e) => setEmdDeposited(e.target.value)}
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1A1A18]">Commercial Technical Specification Document (PDF) *</label>
+              <input
+                type="file"
+                accept=".pdf,.json,.txt"
+                onChange={handleIpfsBidFileUpload}
+                className="w-full text-xs text-[#575753] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#1A1A18] file:text-white hover:file:bg-black cursor-pointer"
+              />
+              {isUploading && <span className="text-[11px] text-[#A13D2B] block">Encrypting document client-side with AES-256-GCM…</span>}
+              {bidDocumentCid && <span className="text-[11px] text-emerald-800 font-mono block">Encrypted CID: {bidDocumentCid}</span>}
+            </div>
+          </div>
+
+          {/* Right Column: Cryptographic Preview */}
+          <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-5 space-y-4">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-[#1A1A18]">
+              Cryptographic Commitment Preview
+            </h3>
+
+            <div className="space-y-2 text-xs font-mono">
+              <div>
+                <span className="text-[#71716D] block text-[11px]">Tender On-Chain ID:</span>
+                <span className="text-[#1A1A18] font-semibold">{currentTender?.onChainId || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-[#71716D] block text-[11px]">Bidding Entity Address:</span>
+                <span className="text-[#1A1A18] font-semibold truncate block">{walletAddress || 'None'}</span>
+              </div>
+              <div>
+                <span className="text-[#71716D] block text-[11px]">Quote Value:</span>
+                <span className="text-[#1A1A18] font-semibold">{amount ? `${amount} ETH` : 'Pending input'}</span>
+              </div>
+              <div>
+                <span className="text-[#71716D] block text-[11px]">Computed keccak256 Commitment:</span>
+                <span className="text-amber-900 font-semibold break-all text-[11px] block">{commitmentHash || 'Incomplete fields'}</span>
+              </div>
+            </div>
+
             <button
               type="button"
+              disabled={isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid || !saltDownloaded || isSubmitting}
               onClick={handlePreSubmitValidation}
-              disabled={isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid}
-              aria-disabled={isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid}
-              className={`w-full font-semibold text-xs py-3 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none flex items-center justify-center gap-2 ${
-                isCurrentTenderClosed || !commitmentHash || !walletAddress || !bidDocumentCid
-                  ? 'bg-[#E8E6E1] text-[#71716D] border border-[#E8E6E1] cursor-not-allowed shadow-none'
-                  : 'bg-[#A13D2B] hover:bg-[#8A3323] text-white shadow-xs cursor-pointer'
-              }`}
+              className="w-full bg-[#A13D2B] hover:bg-[#8A3323] disabled:bg-[#A8A7A1] text-white font-semibold text-xs py-3 rounded-xl transition-colors cursor-pointer"
             >
-              {isCurrentTenderClosed ? 'Submission Period Concluded (Under Evaluation)' : 'Submit Sealed Bid via MetaMask →'}
+              Submit Sealed Bid On-Chain →
             </button>
-            {(!commitmentHash || !walletAddress || !bidDocumentCid) && !isCurrentTenderClosed && (
-              <p className="text-[11px] text-[#71716D] text-center">
-                {!walletAddress ? 'Connect wallet to proceed.' : !bidDocumentCid ? 'Upload encrypted bid PDF to enable.' : 'Enter bid amount and salt to generate hash.'}
-              </p>
-            )}
           </div>
         </div>
       </div>
 
-      {/* On-Chain Confirmation Block */}
-      {onChainBidRecord && (
-        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-6 space-y-3">
-          <div className="flex justify-between items-center border-b border-emerald-200 pb-2">
-            <h3 className="font-semibold text-xs text-emerald-950 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              On-Chain Transaction Confirmed
-            </h3>
-            <span className="font-mono text-xs text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded">
-              SUCCESS
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-mono text-emerald-950">
-            <div className="p-2.5 bg-white rounded-lg border border-emerald-200 space-y-0.5">
-              <span className="text-emerald-800 block text-[11px]">Transaction Hash:</span>
-              <span className="break-all font-semibold">{onChainTxHash}</span>
-            </div>
-
-            <div className="p-2.5 bg-white rounded-lg border border-emerald-200 space-y-0.5">
-              <span className="text-emerald-800 block text-[11px]">Commitment Hash:</span>
-              <span className="break-all font-semibold">{onChainBidRecord.bidCommitment}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       <ConfirmationModal
         isOpen={modalOpen}
         title="Confirm Sealed Bid Submission"
-        message={`Are you sure you want to submit your commitment hash for Tender #1? MetaMask will prompt for transaction confirmation with 0.1 ETH EMD.`}
+        message={`Lock sealed commitment hash and deposit ${emdDeposited} ETH EMD into on-chain escrow for Tender #${currentTender?.onChainId}? This transaction is irreversible.`}
         onConfirm={handleConfirmSubmit}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}

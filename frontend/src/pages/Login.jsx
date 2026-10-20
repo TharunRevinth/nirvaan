@@ -12,9 +12,18 @@ export default function Login({ setPortalRole, walletAddress, setWalletAddress }
     navigate('/tenders');
   };
 
-  const handleVendorConnect = () => {
+  const handleVendorConnect = async () => {
     setPortalRole('Vendor');
-    setWalletAddress('0xfe3b2075775791234567890abcdef1234567bd73');
+    if (window.ethereum) {
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts && accounts.length > 0 && setWalletAddress) {
+          setWalletAddress(accounts[0]);
+        }
+      } catch (e) {
+        console.warn('Wallet connection request rejected:', e);
+      }
+    }
     navigate('/tenders');
   };
 

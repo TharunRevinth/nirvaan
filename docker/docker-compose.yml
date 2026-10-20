@@ -2,31 +2,42 @@ version: '3.8'
 
 services:
   besu-node-1:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:24.1.0
     container_name: besu-validator-1
     volumes:
-      - ./genesis.json:/opt/besu/genesis.json
+      - ./genesis.json:/opt/besu/genesis.json:ro
+      - ./key:/opt/besu/key:ro
+      - besu-data:/opt/besu/data
     command:
       - --data-path=/opt/besu/data
       - --genesis-file=/opt/besu/genesis.json
+      - --node-private-key-file=/opt/besu/key
       - --rpc-http-enabled
       - --rpc-http-host=0.0.0.0
       - --rpc-http-port=8545
-      - --rpc-http-api=ETH,NET,QBFT,PERM
+      - --rpc-http-api=ETH,NET,QBFT,PERM,WEB3
       - --rpc-http-cors-origins=*
       - --host-allowlist=*
       - --min-gas-price=0
     ports:
       - "8545:8545"
+    restart: unless-stopped
 
   ipfs-node:
-    image: ipfs/kubo:latest
+    image: ipfs/kubo:v0.26.0
     container_name: ipfs-storage
     environment:
       - IPFS_PATH=/data/ipfs
     ports:
-      - "5001:5001" # API port
-      - "8080:8080" # Gateway port
-      - "4001:4001" # Swarm port
+      - "127.0.0.1:5001:5001" # API port restricted strictly to localhost (not exposed publicly)
+      - "8080:8080"           # Public HTTP Gateway port
+      - "4001:4001"           # P2P Swarm port
     volumes:
-      - ./ipfs-data:/data/ipfs
+      - ipfs-data:/data/ipfs
+    restart: unless-stopped
+
+volumes:
+  besu-data:
+    driver: local
+  ipfs-data:
+    driver: local

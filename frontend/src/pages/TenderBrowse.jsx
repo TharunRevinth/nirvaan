@@ -56,7 +56,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
         </div>
         <div className="text-left sm:text-right font-mono text-xs text-[#71716D] tabular-nums shrink-0 space-y-0.5">
           <div>Gas Policy: <span className="font-semibold text-[#1A1A18]">0.00 Gwei Fixed</span></div>
-          <div>Consensus: <span className="text-emerald-700 font-semibold">QBFT 7/7 Nodes</span></div>
+          <div>Consensus: <span className="text-emerald-700 font-semibold">QBFT Enterprise Consensus</span></div>
         </div>
       </div>
 
@@ -237,7 +237,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                               </Link>
                               {t.status !== 'AWARDED' && (
                                 <Link
-                                  to="/psu/evaluation"
+                                  to={`/psu/evaluation?tender=${t.id}`}
                                   className="bg-[#1A1A18] hover:bg-black text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
                                 >
                                   Evaluate →

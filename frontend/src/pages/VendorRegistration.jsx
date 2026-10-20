@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
+import { API_URL } from '../config';
 
-export default function VendorRegistration({ walletAddress, triggerToast }) {
+export default function VendorRegistration({ walletAddress: propWallet, triggerToast }) {
   const navigate = useNavigate();
-  const { activateVendorSession } = useAuth();
+  const { walletAddress: ctxWallet, officerToken, activateVendorSession } = useAuth();
+  const walletAddress = propWallet || ctxWallet;
   const [form, setForm] = useState({
     companyName: 'Reliance Offshore Logistics Pvt Ltd',
     gstin: '27AAACR12341Z5',
@@ -50,14 +52,24 @@ export default function VendorRegistration({ walletAddress, triggerToast }) {
       return;
     }
 
-    const activeWallet = walletAddress || '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+    if (!walletAddress) {
+      triggerToast('Please connect your Web3 wallet first before completing registration.', 'error');
+      return;
+    }
+
+    const activeWallet = walletAddress;
 
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/vendors/register', {
+      const headers = { 'Content-Type': 'application/json' };
+      if (officerToken) {
+        headers['Authorization'] = `Bearer ${officerToken}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/vendors/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           vendorAddress: activeWallet,
           gstin: form.gstin,

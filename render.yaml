@@ -1,0 +1,44 @@
+version: "1"
+
+services:
+  - type: web
+    name: nirvaan-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CHAIN_ID
+        value: "11155111"
+      - key: SEPOLIA_RPC_URL
+        sync: false
+      - key: RPC_URL
+        sync: false
+      - key: CONTRACT_ADDRESS
+        sync: false
+      - key: DEPLOY_BLOCK
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: OFFICER_PRIVATE_KEY
+        sync: false
+      - key: KEEPER_PRIVATE_KEY
+        sync: false
+      - key: PINATA_JWT
+        sync: false
+      - key: PINATA_GATEWAY
+        value: "https://gateway.pinata.cloud/ipfs"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: OFFICER_SEED_JSON
+        sync: false
+      - key: DB_PATH
+        value: "/tmp/nirvaan.db"
+      - key: KEEPER_POLL_INTERVAL_S
+        value: "20"

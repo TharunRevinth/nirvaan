@@ -1,322 +1,348 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { useAuth } from '../context/AuthContext';
+import { CONTRACT_ADDRESS, RPC_URL } from '../config';
+import { ensureCorrectChain } from '../utils/chain';
 
-export default function EvaluationAward({ triggerToast, selectedPSU = 'IOCL', tenders = [], setTenders }) {
-  const [selectedTenderId, setSelectedTenderId] = useState(tenders[0]?.id || 'TND-24-9982-A');
-  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0] || { id: 'TND-24-9982-A', title: 'Procurement Package' };
+const CONTRACT_ABI = [
+  "function getTenderBidsCount(uint256 _tenderId) external view returns (uint256)",
+  "function tenderBids(uint256 _tenderId, uint256 _bidIndex) external view returns (uint256 id, uint256 tenderId, address vendorAddress, string memory encryptedBidIpfsHash, bytes32 bidCommitment, uint256 submissionTime, uint256 bidAmount, uint8 status, bool isTechQualified, uint256 techScore, uint256 emdDeposited)",
+  "function setTechnicalScore(uint256 _tenderId, uint256 _bidIndex, bool _qualified, uint256 _score) external",
+  "function awardTender(uint256 _tenderId, address _winner, uint256 _winningBidId, uint256 _winningBidAmount) external",
+  "function tenders(uint256) external view returns (uint256 id, address psuAddress, string memory ipfsHashDoc, uint256 submissionDeadline, uint256 openingTime, uint256 revealDeadline, uint256 appealDeadline, uint256 minEMDAmount, uint8 status, address winner, uint256 winningBidId, uint256 winningBidAmount)"
+];
 
-  const isAwarded = currentTender?.status === 'AWARDED';
-  const awardData = currentTender ? {
-    txHash: currentTender.awardTxHash,
-    blockNumber: currentTender.awardBlock
-  } : null;
+const BID_STATUS_LABELS = {
+  0: 'Submitted (Sealed)',
+  1: 'Opened (Revealed)',
+  2: 'Accepted (Awarded)',
+  3: 'Rejected (Forfeited)'
+};
 
-  const [bids, setBids] = useState([
-    { 
-      rank: 'L1', 
-      vendor: 'Reliance Offshore Logistics Ltd.', 
-      vid: 'RIL-4492-X', 
-      qualified: true, 
-      hash: '0x8f2a71d8e903bc10294e1c2d3f4a5b6c7d8e9f0a1b2c3d4e8927189fa9b4e1c2', 
-      amount: '₹ 45,20,00,000',
-      complianceScore: '99.4%',
-      deliveryTimeline: '14 Months',
-      escrowBondStatus: 'VERIFIED'
-    },
-    { 
-      rank: 'L2', 
-      vendor: 'Larsen & Toubro Heavy Eng.', 
-      vid: 'LT-8821-Y', 
-      qualified: true, 
-      hash: '0x3c1b899a1738d01f94d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a018274619b02716', 
-      amount: '₹ 46,85,50,000',
-      complianceScore: '98.8%',
-      deliveryTimeline: '16 Months',
-      escrowBondStatus: 'VERIFIED'
-    },
-    { 
-      rank: 'L3', 
-      vendor: 'Tata Projects Infrastructure', 
-      vid: 'TP-1102-Z', 
-      qualified: false, 
-      hash: '0x7d9f2140a83e09181a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d9018471649201948', 
-      amount: '₹ 48,00,00,000',
-      complianceScore: '97.2%',
-      deliveryTimeline: '18 Months',
-      escrowBondStatus: 'VERIFIED'
-    }
-  ]);
+export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, tenders = [], setTenders }) {
+  const { officerUser, selectedPSU } = useAuth();
+  const effectivePSU = officerUser?.psu || selectedPSU || propPsu || 'IOCL';
 
+  const [searchParams] = useSearchParams();
+  const queryTenderId = searchParams.get('tender');
+
+  const availableTenders = officerUser
+    ? tenders.filter(t => t.psu === effectivePSU)
+    : tenders;
+
+  const defaultTender = (queryTenderId && tenders.find(t => t.id === queryTenderId || String(t.onChainId) === queryTenderId))
+    || availableTenders[0]
+    || tenders[0];
+
+  const [selectedTenderOnChainId, setSelectedTenderOnChainId] = useState(defaultTender?.onChainId || 1);
+  const currentTender = tenders.find(t => t.onChainId === Number(selectedTenderOnChainId)) || defaultTender;
+
+  const [bids, setBids] = useState([]);
+  const [loadingBids, setLoadingBids] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scoringIndex, setScoringIndex] = useState(null);
 
-  const toggleQualify = (idx) => {
-    if (isAwarded) {
-      triggerToast('Tender is already awarded. Qualifications are locked on-chain.', 'warning');
-      return;
-    }
-    const updated = [...bids];
-    updated[idx].qualified = !updated[idx].qualified;
-    setBids(updated);
-    const newStatus = updated[idx].qualified ? 'Qualified' : 'Pending Verification';
-    triggerToast(`${updated[idx].vendor} technical status set to: ${newStatus}`, 'info');
-  };
+  const isAwarded = currentTender?.status === 'Awarded' || currentTender?.status === 'AWARDED';
 
-  const handleAwardConfirm = async () => {
-    setIsSubmitting(true);
+  // Read REAL bids from contract on-chain
+  const loadOnChainBids = async () => {
+    if (!currentTender?.onChainId) return;
+    setLoadingBids(true);
+
     try {
-      const token = localStorage.getItem('officer_token');
-      const winnerAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-      const onChainId = currentTender?.onChainId || 1;
+      const provider = window.ethereum
+        ? new ethers.BrowserProvider(window.ethereum)
+        : new ethers.JsonRpcProvider(RPC_URL);
 
-      const res = await fetch(`http://localhost:5000/api/tenders/${onChainId}/award`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          winner: winnerAddress,
-          winningBidId: 1,
-          winningBidAmount: "45.2",
-          winnerName: bids[0].vendor,
-          winningAmount: bids[0].amount
-        })
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const onChainId = Number(currentTender.onChainId);
+      const count = await contract.getTenderBidsCount(onChainId);
+      const total = Number(count);
+      const loaded = [];
+
+      for (let i = 0; i < total; i++) {
+        const b = await contract.tenderBids(onChainId, i);
+        const amountWei = b.bidAmount;
+        const amountEth = ethers.formatEther(amountWei);
+
+        loaded.push({
+          index: i,
+          id: Number(b.id),
+          vendorAddress: b.vendorAddress,
+          amountWei,
+          amountEth,
+          status: Number(b.status),
+          statusLabel: BID_STATUS_LABELS[Number(b.status)] || 'Unknown',
+          isQualified: b.isTechQualified,
+          techScore: Number(b.techScore),
+          emdEth: ethers.formatEther(b.emdDeposited),
+          commitment: b.bidCommitment,
+          encryptedCid: b.encryptedBidIpfsHash
+        });
+      }
+
+      // Sort opened bids to determine L1, L2, etc.
+      const openedBids = loaded.filter(b => b.status === 1 || b.status === 2);
+      openedBids.sort((a, b) => (a.amountWei < b.amountWei ? -1 : a.amountWei > b.amountWei ? 1 : 0));
+
+      const rankedBids = loaded.map(b => {
+        const rankIdx = openedBids.findIndex(ob => ob.id === b.id);
+        return {
+          ...b,
+          rank: rankIdx >= 0 ? `L${rankIdx + 1}` : 'Pending Opening'
+        };
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Contract award failed on server.');
-      }
+      setBids(rankedBids);
+    } catch (err) {
+      console.warn('Error reading on-chain bids:', err.message);
+      setBids([]);
+    } finally {
+      setLoadingBids(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOnChainBids();
+  }, [currentTender?.onChainId]);
+
+  // Handle setting real technical score on-chain
+  const handleSetScore = async (bidIndex, qualified, score) => {
+    if (!window.ethereum) {
+      triggerToast('Web3 wallet required to sign technical qualification.', 'error');
+      return;
+    }
+
+    setScoringIndex(bidIndex);
+    try {
+      await ensureCorrectChain();
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+      const tx = await contract.setTechnicalScore(
+        Number(currentTender.onChainId),
+        bidIndex,
+        qualified,
+        score
+      );
+
+      triggerToast(`Setting technical score... Tx: ${tx.hash.substring(0, 18)}…`, 'info');
+      await tx.wait();
+      triggerToast(`Technical score recorded on-chain for Bid #${bidIndex}.`, 'success');
+      await loadOnChainBids();
+    } catch (err) {
+      console.error('Technical qualification error:', err);
+      triggerToast(`Technical score error: ${err.reason || err.message}`, 'error');
+    } finally {
+      setScoringIndex(null);
+    }
+  };
+
+  // Find lowest qualified bid (L1)
+  const qualifiedOpenedBids = bids
+    .filter(b => (b.status === 1 || b.status === 2) && b.isQualified)
+    .sort((a, b) => (a.amountWei < b.amountWei ? -1 : 1));
+
+  const l1Bid = qualifiedOpenedBids[0];
+
+  // Award the contract to actual L1 bidder
+  const handleAwardConfirm = async () => {
+    if (!l1Bid) {
+      triggerToast('No qualified unsealed bids found to award.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await ensureCorrectChain();
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+      const tx = await contract.awardTender(
+        Number(currentTender.onChainId),
+        l1Bid.vendorAddress,
+        l1Bid.id,
+        l1Bid.amountWei
+      );
+
+      triggerToast(`Award transaction sent: ${tx.hash.substring(0, 18)}…`, 'info');
+      const receipt = await tx.wait();
 
       setIsSubmitting(false);
       setModalOpen(false);
+      triggerToast(`Tender #${currentTender.onChainId} awarded on-chain to L1 bidder in Block #${receipt.blockNumber}.`, 'success');
 
-      if (setTenders) {
-        setTenders(prev => prev.map(t => (t.id === currentTender.id || String(t.onChainId) === String(onChainId)) ? {
-          ...t,
-          status: 'AWARDED',
-          winner: bids[0].vendor,
-          winnerVid: bids[0].vid,
-          winnerAddress: winnerAddress,
-          winningAmount: bids[0].amount,
-          awardTxHash: data.txHash,
-          awardBlock: `Block #${data.blockNumber || 142950}`,
-          complianceScore: bids[0].complianceScore,
-          deliveryTimeline: bids[0].deliveryTimeline,
-          appealDeadline: Math.floor(Date.now() / 1000) + 7 * 86400,
-          appealWindowClosed: false
-        } : t));
-      }
-
-      triggerToast(`Contract awarded to L1 Bidder (${bids[0].vendor}). Tx: ${data.txHash.substring(0, 18)}…`, 'success');
+      await loadOnChainBids();
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);
-      console.error("Contract award error:", err);
-      triggerToast(err.message, 'error');
+      console.error('Award execution error:', err);
+      triggerToast(`Award failed: ${err.reason || err.message}`, 'error');
     }
   };
 
-  const isL1Qualified = bids[0].qualified;
-
   return (
-    <div id="main-content" className="max-w-5xl mx-auto space-y-6">
+    <div id="main-content" className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="border-b border-[#E8E6E1] pb-4 flex flex-col md:flex-row justify-between md:items-end gap-3">
+      <div className="border-b border-[#E8E6E1] pb-4 flex flex-col sm:flex-row justify-between sm:items-end gap-3">
         <div className="space-y-1">
           <span className="text-[11px] font-mono font-semibold uppercase text-[#71716D] tracking-wider">
-            Evaluation Console • {selectedPSU} Cell
+            {effectivePSU} Procurement Cell • On-Chain L1 Determination
           </span>
           <h1 className="text-2xl font-bold text-[#1A1A18] tracking-tight">
-            Revealed Bids Evaluation &amp; Award
+            Bid Evaluation &amp; Contract Award Console
           </h1>
           <p className="text-xs text-[#575753]">
-            Tender Ref: <span className="font-mono font-semibold text-[#1A1A18]">{currentTender?.id}</span> • {currentTender?.title}
+            Verify technical qualifications, inspect opened quotes, and execute tamper-proof smart contract awards.
           </p>
         </div>
 
-        <div className="text-left sm:text-right font-mono text-xs text-[#71716D] tabular-nums">
-          <div>Status: <span className={`font-semibold ${isAwarded ? 'text-emerald-700' : 'text-[#1A1A18]'}`}>{isAwarded ? 'Contract Awarded' : 'Bids Unsealed'}</span></div>
-          <div>Consensus: <span className="text-emerald-700 font-semibold">7/7 Nodes Attested</span></div>
-        </div>
-      </div>
-
-      {/* Tender Selection Dropdown */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 border border-[#E8E6E1] rounded-xl shadow-2xs">
-        <label htmlFor="eval-tender-select" className="text-xs font-semibold text-[#1A1A18] uppercase tracking-wider font-mono">
-          Select Tender Package:
-        </label>
-        <select
-          id="eval-tender-select"
-          value={selectedTenderId}
-          onChange={(e) => setSelectedTenderId(e.target.value)}
-          className="w-full sm:w-80 bg-[#FAFAF9] border border-[#D3D1CB] rounded-lg px-3 py-1.5 text-xs font-mono font-medium text-[#1A1A18] focus:outline-none focus:ring-1 focus:ring-[#A13D2B]"
-        >
-          {tenders.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.id} — {t.title} ({t.status})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* On-Chain Award Banner */}
-      {isAwarded && (
-        <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 text-xs shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
-            <div>
-              <strong className="text-emerald-950 font-bold block text-sm">
-                Contract Officially Awarded On-Chain to L1 Bidder: {bids[0].vendor}
-              </strong>
-              <span className="text-[#575753] text-[11px] block mt-0.5">
-                Winning Quote: <span className="font-mono font-semibold text-[#1A1A18]">{bids[0].amount}</span> • Tx: <span className="font-mono font-medium text-emerald-900">{awardData?.txHash || '0x6e7b2a9f148c023d5e8901ba72018274619b02716b4e1c2d3f4a5b6c7d8e9f0a'}</span>
-              </span>
-            </div>
-          </div>
-          <span className="font-mono text-emerald-900 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded text-[11px] font-semibold shrink-0">
-            7-Day CVC Standstill Active
+        <div className="text-left sm:text-right font-mono text-xs">
+          <span className="text-[#71716D] block">Status:</span>
+          <span className={`font-semibold ${isAwarded ? 'text-amber-800' : 'text-emerald-800'}`}>
+            {currentTender?.status || 'UnderEvaluation'}
           </span>
         </div>
-      )}
+      </div>
 
-      {/* Evaluation Matrix Table */}
-      <div className="bg-white border border-[#E8E6E1] rounded-xl overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-[#E8E6E1] flex justify-between items-center bg-[#FAFAF9]">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#1A1A18]">
-              Decrypted Commercial Bids
-            </h2>
-            <p className="text-[11px] text-[#71716D]">
-              Evaluated under L1 least-cost sovereign procurement method. Review &amp; verify technical qualifications below.
-            </p>
-          </div>
-          <span className="text-xs font-mono text-[#575753] bg-white border border-[#E8E6E1] px-2.5 py-1 rounded">
-            3 Bids Unsealed
-          </span>
+      {/* Package Selector */}
+      <div className="bg-white border border-[#E8E6E1] rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="space-y-1 w-full sm:w-auto">
+          <label className="text-xs font-semibold text-[#1A1A18]">Select Tender Package for Commercial Evaluation</label>
+          <select
+            value={selectedTenderOnChainId}
+            onChange={(e) => setSelectedTenderOnChainId(Number(e.target.value))}
+            className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-1.5 text-xs font-mono text-[#1A1A18] cursor-pointer focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
+          >
+            {availableTenders.map(t => (
+              <option key={t.onChainId} value={t.onChainId}>
+                #{t.onChainId} — {t.id} ({t.title})
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#E8E6E1] bg-[#FAFAF9] text-[11px] font-semibold text-[#71716D] uppercase tracking-wider">
-                <th scope="col" className="p-3.5 w-12 text-center">Rank</th>
-                <th scope="col" className="p-3.5">Commercial Bidder</th>
-                <th scope="col" className="p-3.5 text-center">Qualification Action</th>
-                <th scope="col" className="p-3.5">Compliance</th>
-                <th scope="col" className="p-3.5 font-mono">Commitment Hash</th>
-                <th scope="col" className="p-3.5 text-right">Commercial Quote</th>
-              </tr>
-            </thead>
-            <tbody className="text-xs text-[#1A1A18] divide-y divide-[#E8E6E1]">
-              {bids.map((b, idx) => {
-                const isL1 = b.rank === 'L1';
-                return (
-                  <tr key={idx} className={isL1 ? 'bg-[#FAFAF9]' : 'hover:bg-[#FAFAF9] transition-colors'}>
-                    <td className="p-3.5 text-center font-bold font-mono text-[#1A1A18]">
-                      {b.rank}
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-semibold text-[#1A1A18] flex items-center gap-2">
-                        {b.vendor}
-                        {isL1 && (
-                          <span className="px-2 py-0.5 text-[10px] font-mono uppercase rounded bg-[#A13D2B]/10 text-[#A13D2B] font-semibold">
-                            L1 Lowest
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#71716D] font-mono">
-                        VID: {b.vid} • Escrow: {b.escrowBondStatus}
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleQualify(idx)}
-                        aria-label={`Toggle qualification status for ${b.vendor}. Current status: ${b.qualified ? 'Qualified' : 'Pending Verification'}`}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center justify-center gap-1.5 mx-auto focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none cursor-pointer ${
-                          b.qualified 
-                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100 shadow-xs' 
-                            : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-xs ring-1 ring-amber-400/30'
-                        }`}
-                      >
-                        <span>{b.qualified ? '✓ Qualified' : '⏳ Verify Qualification'}</span>
-                        <span className="text-[10px] text-[#71716D] font-normal font-mono">(Click to toggle)</span>
-                      </button>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-mono font-medium text-[#1A1A18]">{b.complianceScore}</div>
-                      <div className="text-[10px] text-[#71716D]">Timeline: {b.deliveryTimeline}</div>
-                    </td>
-                    <td className="p-3.5 font-mono text-[11px] text-[#71716D]">
-                      <div className="truncate max-w-[140px]" title={b.hash}>
-                        {b.hash.substring(0, 8)}…{b.hash.substring(b.hash.length - 6)}
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-bold text-[#1A1A18] tabular-nums">
-                      {b.amount}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="text-xs text-[#71716D] font-mono">
+          Bids Submitted: <strong className="text-[#1A1A18]">{bids.length}</strong>
         </div>
       </div>
 
-      {/* Award Action Section */}
-      <div className="bg-white border border-[#E8E6E1] rounded-xl p-6 text-center space-y-4 shadow-xs">
-        <div className="space-y-1 max-w-lg mx-auto">
-          <h2 className="text-sm font-semibold text-[#1A1A18]">
-            Finalize Contract Award
-          </h2>
-          <p className="text-xs text-[#575753] leading-relaxed">
-            Verify technical qualification for L1 bidder (<span className="font-semibold text-[#1A1A18]">{bids[0].vendor}</span>). Awarding executes an on-chain state transition to <span className="font-mono font-semibold">AWARDED</span> and initiates the 7-day standstill hold.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-center gap-3">
+      {/* Bids Table */}
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl overflow-hidden shadow-xs">
+        <div className="p-4 bg-[#FAFAF9] border-b border-[#E8E6E1] flex justify-between items-center">
+          <h3 className="font-bold text-xs uppercase tracking-wider text-[#1A1A18]">
+            On-Chain Commercial Submissions
+          </h3>
           <button
             type="button"
-            onClick={() => setModalOpen(true)}
-            disabled={!isL1Qualified}
-            aria-disabled={!isL1Qualified}
-            className={`font-semibold text-xs px-6 py-2.5 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none flex items-center gap-2 ${
-              isL1Qualified
-                ? 'bg-[#A13D2B] hover:bg-[#8A3323] text-white shadow-xs cursor-pointer'
-                : 'bg-[#E8E6E1] text-[#71716D] border border-[#E8E6E1] cursor-not-allowed shadow-none'
-            }`}
+            onClick={loadOnChainBids}
+            className="text-xs text-[#A13D2B] hover:underline cursor-pointer"
           >
-            <span>Award Contract to L1 Bidder On-Chain →</span>
+            ↻ Refresh Bids
           </button>
-
-          {!isL1Qualified ? (
-            <div className="bg-[#FFF9F2] border border-[#F3DFC1] rounded-lg p-3 text-xs text-[#7A4510] max-w-md flex flex-col sm:flex-row items-center justify-between gap-2 text-left">
-              <span>
-                <strong>Qualification Required:</strong> L1 Bidder ({bids[0].vendor}) must be qualified before award.
-              </span>
-              <button
-                type="button"
-                onClick={() => toggleQualify(0)}
-                className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-1 rounded text-xs font-semibold shrink-0 cursor-pointer transition-colors"
-              >
-                Verify L1 Now
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-emerald-800 font-medium flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              L1 Bidder technical qualifications verified. Ready to execute on-chain award.
-            </span>
-          )}
         </div>
+
+        {loadingBids ? (
+          <div className="p-8 text-center text-xs text-[#71716D] font-mono">
+            Reading real bids from smart contract storage…
+          </div>
+        ) : bids.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[#71716D]">
+            No bids submitted for this tender yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-[#FAFAF9] text-[#71716D] uppercase text-[10px] border-b border-[#E8E6E1]">
+                <tr>
+                  <th className="p-3">Rank</th>
+                  <th className="p-3">Bidder Address</th>
+                  <th className="p-3">EMD Paid</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Commercial Quote</th>
+                  <th className="p-3">Tech Qualified</th>
+                  <th className="p-3">Tech Score</th>
+                  <th className="p-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E8E6E1]">
+                {bids.map((b) => (
+                  <tr key={b.id} className={b.rank === 'L1' && b.isQualified ? 'bg-amber-50/40' : ''}>
+                    <td className="p-3 font-bold text-[#1A1A18]">
+                      {b.rank}
+                    </td>
+                    <td className="p-3 font-semibold text-[#1A1A18]">
+                      {b.vendorAddress.slice(0, 6)}…{b.vendorAddress.slice(-4)}
+                    </td>
+                    <td className="p-3 text-[#575753]">{b.emdEth} ETH</td>
+                    <td className="p-3">{b.statusLabel}</td>
+                    <td className="p-3 font-bold text-[#1A1A18]">
+                      {b.status === 1 || b.status === 2 ? `${b.amountEth} ETH` : 'Sealed'}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.isQualified ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                        {b.isQualified ? 'QUALIFIED' : 'DISQUALIFIED'}
+                      </span>
+                    </td>
+                    <td className="p-3">{b.techScore}/100</td>
+                    <td className="p-3">
+                      {!isAwarded && (
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            disabled={scoringIndex === b.index}
+                            onClick={() => handleSetScore(b.index, !b.isQualified, b.isQualified ? 0 : 90)}
+                            className="bg-[#1A1A18] hover:bg-black text-white px-2 py-1 rounded text-[10px] transition-colors cursor-pointer"
+                          >
+                            {b.isQualified ? 'Disqualify' : 'Qualify'}
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Award Execution Bar */}
+      <div className="bg-white border border-[#E8E6E1] rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-xs">
+        <div className="space-y-1">
+          <span className="text-[11px] font-mono text-[#71716D] uppercase block">
+            Automated L1 Lowest-Cost Determination
+          </span>
+          <div className="text-sm font-bold text-[#1A1A18]">
+            {l1Bid ? (
+              <span>L1 Winner: {l1Bid.vendorAddress.slice(0, 8)}… at {l1Bid.amountEth} ETH</span>
+            ) : (
+              <span>No qualified revealed bidder available for award</span>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={!l1Bid || isAwarded || isSubmitting}
+          onClick={() => setModalOpen(true)}
+          className="bg-[#A13D2B] hover:bg-[#8A3323] disabled:bg-[#A8A7A1] text-white font-semibold text-xs px-6 py-3 rounded-xl transition-colors cursor-pointer"
+        >
+          {isAwarded ? 'Contract Already Awarded' : 'Execute L1 Award On-Chain →'}
+        </button>
       </div>
 
       <ConfirmationModal
         isOpen={modalOpen}
-        title="Confirm Contract Award Execution"
-        message={`Are you sure you want to award the contract for TND-24-9982-A to L1 Bidder (${bids[0].vendor})? This will trigger an immutable on-chain record.`}
+        title="Confirm On-Chain Contract Award"
+        message={`Execute binding award on smart contract to lowest qualified bidder (L1) ${l1Bid?.vendorAddress} for ${l1Bid?.amountEth} ETH? This triggers the statutory 7-day CVC appeal window.`}
         onConfirm={handleAwardConfirm}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}

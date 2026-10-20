@@ -7,12 +7,22 @@ const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-// Accounts
-const deployer = new ethers.Wallet('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80', provider); // PSU / Admin
-const vendor1 = new ethers.Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d', provider);  // Vendor 1 (Account #1)
-const vendor2 = new ethers.Wallet('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a', provider);  // Vendor 2 (Account #2 - Challenger)
-const keeper = new ethers.Wallet('0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a', provider);   // Keeper (Account #4)
-const cvc = new ethers.Wallet('0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba', provider);      // CVC Auditor (Account #5)
+// Accounts loaded from environment or generated randomly
+const deployer = process.env.DEPLOYER_PRIVATE_KEY
+  ? new ethers.Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider)
+  : ethers.Wallet.createRandom(provider); // PSU / Admin
+const vendor1 = process.env.VENDOR1_PRIVATE_KEY
+  ? new ethers.Wallet(process.env.VENDOR1_PRIVATE_KEY, provider)
+  : ethers.Wallet.createRandom(provider);  // Vendor 1
+const vendor2 = process.env.VENDOR2_PRIVATE_KEY
+  ? new ethers.Wallet(process.env.VENDOR2_PRIVATE_KEY, provider)
+  : ethers.Wallet.createRandom(provider);  // Vendor 2 (Challenger)
+const keeper = process.env.KEEPER_PRIVATE_KEY
+  ? new ethers.Wallet(process.env.KEEPER_PRIVATE_KEY, provider)
+  : ethers.Wallet.createRandom(provider);   // Keeper
+const cvc = process.env.CVC_PRIVATE_KEY
+  ? new ethers.Wallet(process.env.CVC_PRIVATE_KEY, provider)
+  : ethers.Wallet.createRandom(provider);      // CVC Auditor
 
 const ABI = [
   'function createTender(string memory _ipfsHash, uint256 _submissionDeadline, uint256 _openingTime, uint256 _minEMD) external',

@@ -4,10 +4,14 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const RPC_URL = process.env.RPC_URL || 'http://127.0.0.1:8545';
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
-// Deployer / PSU Officer Account #0
-const PSU_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-// Vendor Account #2
-const VENDOR_ADDRESS = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+// Deployer / PSU Officer Account
+const PSU_PRIVATE_KEY = process.env.OFFICER_PRIVATE_KEY || process.env.PSU_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
+if (!PSU_PRIVATE_KEY) {
+  console.error('[ERROR] OFFICER_PRIVATE_KEY or PSU_PRIVATE_KEY environment variable required.');
+  process.exit(1);
+}
+// Vendor Account
+const VENDOR_ADDRESS = process.env.VENDOR_ADDRESS || '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
 
 const CONTRACT_ABI = [
   'function createTender(string memory _ipfsHash, uint256 _submissionDeadline, uint256 _openingTime, uint256 _minEMD) external',
