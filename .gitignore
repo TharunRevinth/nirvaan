@@ -52,4 +52,8 @@ test_execution_report.txt
 # Screenshots & generated document reports
 docs/
 *.png
-!frontend/stitch_extracted/**/*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
