@@ -1,14 +1,14 @@
 {
-  "network": "hardhat",
-  "chainId": 31337,
-  "proxyAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  "implementationAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "deployBlock": 2,
-  "multisigAdmin": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "keeperAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "cvcAuditorAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "treasuryAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "proxyAddress": "0xe9649E82dC4fEdf86dFbE5120a3fE79BDde88663",
+  "implementationAddress": "0xd5451fe17e92B9A9A8Abce4C6c1fc5bFF86f6606",
+  "deployBlock": 11959326,
+  "multisigAdmin": "0x63a7268e2404a2A0be53032091B3664456b8d62c",
+  "keeperAddress": "0x5658af2Fc87aE86313A7b3aF46399c1D2119aEF6",
+  "cvcAuditorAddress": "0xb08b4eBd02eAc4EFbc4dab3CB46153AC9c613882",
+  "treasuryAddress": "0x62745F1920B2EAA3C56dD3eAC46037B761Ce5bCA",
   "disputeBondEth": "0.01",
   "defaultMinEmdEth": "0.001",
-  "deployedAt": "2026-10-20T15:20:06.765Z"
+  "deployedAt": "2026-10-21T02:04:28.463Z"
 }
