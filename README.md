@@ -18,23 +18,27 @@ flowchart TD
         Public["Public Auditors & Citizens<br/>(CVC & Transparency Oversight)"]
     end
 
-    subgraph Client["Presentation & Application Layer (React 18 + GIGW)"]
-        UI["NIRVAAN Web Portal<br/>(Port 3000)"]
+    subgraph Client["Frontend Layer (Vercel SPA)"]
+        UI["NIRVAAN Web Portal<br/>(Vite + React 18 + GIGW)"]
         AuthCtx["AuthContext Provider<br/>(JWT Officer / Web3 Wallet)"]
-        CryptoClient["Client-Side Keccak-256 Hasher<br/>(Commit-Reveal Salting)"]
-        IPFSClient["Resilient IPFS Client<br/>(SHA-256 Digest Verification)"]
+        CryptoClient["Client-Side Keccak-256 Hasher<br/>(Commit-Reveal Protocol)"]
+        IPFSClient["Resilient IPFS Client<br/>(Pinata Gateway)"]
     end
 
-    subgraph Services["Consortium Services & Relayers"]
-        Express["API Gateway Backend<br/>(Port 5000 / JWT & Relayers)"]
-        Kubo["IPFS Storage Node<br/>(Ports 5001 / 8080)"]
-        Keeper["Autonomous Oracle Keeper<br/>(Time-Triggered State Monitor)"]
+    subgraph Services["Cloud Services (Render Free Web Service)"]
+        Express["API Gateway Backend<br/>(Node 22 / JWT & Tenant Isolation)"]
+        Indexer["Dynamic Event Indexer<br/>(Block-Range Adaptive Sync)"]
+        Keeper["Autonomous Oracle Keeper<br/>(Embedded Time-Triggered Bot)"]
     end
 
-    subgraph Blockchain["Permissioned Blockchain Layer (Port 8545)"]
-        Besu["Hyperledger Besu Consortium<br/>(7 Validator Nodes / QBFT / Zero-Gas)"]
-        Proxy["UUPS Transparent Proxy<br/>(0x5FbDB2315678afecb367f032d93F642f64180aa3)"]
-        Contract["OilTenderingV1 Engine<br/>(State Machine, Escrow, Commitments)"]
+    subgraph Storage["Decentralized Storage"]
+        Pinata["Pinata Cloud IPFS<br/>(AES-256 Encrypted Dossiers)"]
+    end
+
+    subgraph Blockchain["Decentralized Blockchain (Ethereum Sepolia)"]
+        Sepolia["Ethereum Sepolia Testnet<br/>(Chain ID: 11155111 / Proof-of-Stake)"]
+        Proxy["ERC-1967 Transparent Proxy<br/>(Configurable Multisig Admin)"]
+        Contract["OilTenderingV1 Engine<br/>(On-chain L1, Pull Payments, Standstill)"]
     end
 
     PSU -->|"JWT Authenticated Session"| UI
@@ -46,13 +50,13 @@ flowchart TD
     UI --> IPFSClient
 
     AuthCtx --> Express
-    IPFSClient --> Kubo
-    Express -->|"Server-Signed Relays"| Besu
+    IPFSClient --> Pinata
+    Express -->|"Server-Signed Relays"| Sepolia
 
-    Keeper -->|"openBids() / finalizeTender()"| Besu
-    CryptoClient -->|"Sealed Commitments"| Besu
+    Keeper -->|"openBids() / finalizeTender()"| Sepolia
+    CryptoClient -->|"Sealed Commitments"| Sepolia
 
-    Besu --> Proxy
+    Sepolia --> Proxy
     Proxy --> Contract
 ```
 
@@ -94,12 +98,13 @@ stateDiagram-v2
 
 ## 3. Architectural Highlights
 
-- **Permissioned Zero-Gas Consortium:** Operates on Hyperledger Besu utilizing the QBFT (Quorum Byzantine Fault Tolerant) consensus protocol across seven authorized validator nodes, enforcing a zero-base-fee gas model (`gasPrice: 0x0`) for zero-cost internal execution.
-- **Client-Side Sealed-Bid Cryptography:** Commercial financial bids are salted and hashed client-side before broadcast using Solidity `keccak256(vendorAddress, bidAmount, salt, tenderId)`. Bid amounts remain mathematically confidential until the automated public opening phase.
+- **Decentralized Public Testnet Consensus:** Operates on the Ethereum Sepolia network (Chain ID: 11155111) utilizing Proof-of-Stake consensus, ensuring transparent, immutable, and fully verifiable procurement state execution.
+- **Client-Side Commit-Reveal Cryptography:** Commercial financial bids are salted and hashed client-side before broadcast using Solidity `keccak256(vendorAddress, bidAmount, salt, tenderId)`. Bid amounts remain mathematically confidential until the automated public opening phase.
 - **Multi-Tenant Sovereign Isolation:** Rigorous tenant and role boundaries prevent cross-tenant data leakage. Procurement officers are restricted exclusively to tenders issued by their respective PSU, with administrative actions inaccessible to vendors and public visitors.
-- **Decentralized Specification Dossiers:** Notice Inviting Tender (NIT) specifications, engineering drawings, and evidentiary dossiers are anchored to the InterPlanetary File System (IPFS) with client-side SHA-256 digest verification and multi-gateway failover.
-- **Statutory 7-Day Standstill & Dispute Escrow:** Contract awards automatically trigger an immutable 7-day appeal window. Accredited bidders can lodge formal challenges backed by a mandatory 1.0 ETH on-chain escrow bond, subject to independent CVC auditor review.
-- **Enterprise Upgradeability:** Smart contracts adhere to the OpenZeppelin Universal Upgradeable Proxy Standard (UUPS), permitting non-disruptive logic upgrades managed by a multi-signature governance key.
+- **Decentralized Specification Dossiers:** Notice Inviting Tender (NIT) specifications, engineering drawings, and evidentiary dossiers are anchored to IPFS via Pinata with cryptographic multihashes verified and stored directly on-chain.
+- **Statutory 7-Day Standstill & Configurable Dispute Bond:** Contract awards automatically trigger an immutable 7-day appeal window. Accredited bidders can lodge formal challenges backed by a configurable on-chain escrow bond (0.01 ETH on Sepolia to conserve testnet funds), subject to independent CVC auditor review with 14-day timeout protection.
+- **On-Chain L1 Enforcement & Pull Payments:** Smart contract guarantees the awarded winner is strictly the lowest qualified bidder (L1) with matching revealed bid parameters. Push transfers in loops are replaced with pull payments (`withdraw()`), protecting against denial-of-service vulnerabilities.
+- **Enterprise Upgradeability:** Smart contracts adhere to the OpenZeppelin ERC-1967 Transparent Upgradeable Proxy Standard, permitting non-disruptive logic upgrades managed by a configurable multi-signature governance key.
 
 ---
 
@@ -111,7 +116,7 @@ stateDiagram-v2
 | **Tender Scope** | Scoped strictly to logged-in PSU (`tender.psu === officerUser.psu`) | All active tenders across all five PSUs | All active tenders across all five PSUs |
 | **Bidding Actions** | Prohibited (Bid actions stripped from all officer views) | Submit sealed bid commitments; reveal bids during opening | Read-only; cannot submit bids |
 | **Administrative Actions** | Formulate NITs; evaluate revealed bids; execute contract award | None (Protocol 403 access denied) | None |
-| **Dispute Filing** | Blocked via Protocol 403 role guard | File dispute with 1.0 ETH bond within 7-day standstill | None |
+| **Dispute Filing** | Blocked via Protocol 403 role guard | File dispute with bond within 7-day standstill | None |
 | **Award Resolution** | Full Evaluation & Award Console with technical scoring | Read-only public award summary and custody ledger | Read-only public award summary and custody ledger |
 
 ---
@@ -122,132 +127,81 @@ stateDiagram-v2
 nirvaan/
 ├── contracts/                        # Smart Contracts & Testing Suite
 │   ├── contracts/
-│   │   └── OilTenderingV1.sol        # UUPS Upgradeable Smart Contract (Solidity ^0.8.24)
+│   │   ├── OilTenderingV1.sol        # Upgradeable Smart Contract Engine (Solidity ^0.8.24)
+│   │   └── TenderProxy.sol           # ERC1967Proxy Implementation
 │   ├── scripts/
-│   │   ├── deploy.js                 # Proxy deployment script
-│   │   └── test-runner-custom.js     # Standalone acceptance suite runner
+│   │   ├── deploy-sepolia.js         # Atomic Sepolia deployment script
+│   │   └── deploy.js                 # Proxy deployment script
 │   ├── test/
-│   │   └── OilTendering.test.js      # Hardhat unit test suite (8/8 passing)
-│   └── hardhat.config.js             # Hardhat network configuration
+│   │   └── OilTendering.test.js      # Hardhat test suite (13/13 passing)
+│   └── hardhat.config.js             # Hardhat network configuration (Sepolia + local)
 │
 ├── backend/                          # Gateway & Authentication Service
-│   ├── data/
-│   │   └── officers.json             # Seeded officer credential datastore
-│   ├── scripts/
-│   │   └── seed-officers.js          # Cryptographic credential provisioning utility
-│   ├── server.js                     # Express API server (JWT auth, relayers, IPFS upload)
-│   └── package.json                  # Backend dependencies
+│   ├── server.js                     # Express API server (JWT auth, officer relays, Pinata IPFS)
+│   ├── indexer.js                    # Adaptive RPC block-range event indexer
+│   ├── embeddedKeeper.js             # Autonomous oracle keeper background worker
+│   └── package.json                  # Backend dependencies (Node 22)
 │
 ├── frontend/                         # GIGW-Compliant User Interface
-│   ├── public/
-│   │   ├── nirvaan-logo.svg          # Official vector emblem
-│   │   └── nirvaan-logo.png          # High-resolution raster asset
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── NirvaanLogo.jsx       # Official NIRVAAN vector component
-│   │   │   ├── GovIdentityStrip.jsx  # Ashoka Emblem & Government of India banner
-│   │   │   ├── AccessibilityBar.jsx  # GIGW font and contrast controls
-│   │   │   ├── TopBar.jsx            # Header, institutional badge, network telemetry
-│   │   │   ├── Sidebar.jsx           # Role-gated navigation hierarchy
-│   │   │   ├── ChainOfCustodyTimeline.jsx # Immutable custody audit timeline
-│   │   │   ├── ConfirmationModal.jsx # Irreversible transaction confirmation dialog
-│   │   │   └── ProtectedRoute.jsx    # Protocol 403 access control & route guard
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx       # Dual-session provider (Wallet & JWT)
-│   │   ├── pages/
-│   │   │   ├── Landing.jsx           # Entry portal (PSU login & vendor connect)
-│   │   │   ├── VendorRegistration.jsx# Corporate KYC onboarding
-│   │   │   ├── TenderBrowse.jsx      # Scoped tender registers with multi-factor search
-│   │   │   ├── TenderDetail.jsx      # Read-only specification and custody record
-│   │   │   ├── SealedBidSubmission.jsx# Client-side commit-reveal form
-│   │   │   ├── DisputeFiling.jsx     # Statutory dispute filing interface
-│   │   │   ├── TenderCreation.jsx    # PSU NIT formulation console
-│   │   │   └── EvaluationAward.jsx   # Officer bid evaluation and award console
-│   │   └── utils/
-│   │       └── ipfs.js               # Multi-gateway failover IPFS client
-│   └── package.json                  # Frontend dependencies
+│   │   ├── components/               # Accessible UI components & navigation
+│   │   ├── pages/                    # Role-gated portal views (Officer, Vendor, CVC, Public)
+│   │   └── utils/                    # IPFS, cryptographic, and chain helpers
+│   └── package.json                  # Frontend dependencies (React 18 + Vite)
 │
-├── keeper/                           # Automated Oracle Keeper Service
-│   └── keeper.js                     # Time-triggered state machine transition monitor
-│
-├── docker/                           # Consortium Node Topology
-│   ├── genesis.json                  # QBFT genesis configuration (Chain ID 1337)
-│   └── docker-compose.yml            # 7-node validator cluster definition
-│
-└── PROJECT_ARCHITECTURE_AND_PROGRESS.md # Detailed technical specification report
+└── DEPLOYMENT.md                     # Step-by-step free-tier online deployment guide
 ```
 
 ---
 
-## 6. Environment Setup & Execution
+## 6. Deployment & Environment Setup
 
-### Prerequisites
-- Node.js (v18.0.0 or higher)
-- npm (v9.0.0 or higher)
-- Hardhat / Local EVM compatible runtime
-- IPFS Kubo Daemon (v0.20.0 or higher, optional for local uploads)
+NIRVAAN is production-ready for free-tier online cloud deployment:
+- **Smart Contracts**: Ethereum Sepolia Testnet (ERC-1967 Atomic Proxy)
+- **Decentralized Storage**: Pinata Cloud IPFS
+- **Backend & Autonomous Keeper**: Render Free Web Service (Node 22 with Ephemeral Reconstructable SQLite)
+- **Frontend**: Vercel Single Page Application (Vite SPA)
 
-### Step 1: Smart Contracts & Local Node
+> For full, beginner-friendly instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Local Test Execution
+
 ```bash
-# Navigate to contracts workspace
-cd contracts
+# Run all test suites across the monorepo:
+npm test
 
-# Install dependencies
-npm install
+# Run smart contract unit tests (13/13 passing):
+npm run test:contracts
 
-# Run the complete test suite
-npx hardhat test test/OilTendering.test.js
+# Run backend unit tests & KYC workflows:
+npm run test:backend
 
-# Launch local EVM node (port 8545)
-npx hardhat node
+# Run automated deployment smoke test:
+npm run test:smoke
 
-# Deploy UUPS proxy contract (in a separate terminal)
-npx hardhat run scripts/deploy.js --network localhost
+# Security secret scanner (verifies 0 private keys committed):
+npm run scan:secrets
 ```
-
-### Step 2: Backend Authentication Gateway
-```bash
-# Navigate to backend workspace
-cd backend
-
-# Install dependencies
-npm install
-
-# Seed officer credential store with randomized passwords
-npm run seed
-
-# Start API gateway (port 5000)
-npm start
-```
-
-### Step 3: Frontend Application
-```bash
-# Navigate to frontend workspace
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server (port 3000)
-npm run dev
-```
-
-The application will be accessible at `http://localhost:3000`.
 
 ---
 
 ## 7. Verification & Test Suite Summary
 
-The smart contract suite in [`contracts/test/OilTendering.test.js`](contracts/test/OilTendering.test.js) verifies eight critical operational invariants:
+The smart contract suite in [`contracts/test/OilTendering.test.js`](contracts/test/OilTendering.test.js) verifies 13 critical operational invariants:
 
-1. **Proxy Initialization:** Correct allocation of admin, keeper, and CVC auditor role designations.
-2. **Deadline Enforcement:** Strict rejection of sealed bid submissions following the submission deadline.
-3. **Commitment Verification:** Rejection of bid revelations containing invalid amounts or salts.
-4. **EMD Enforcement:** Rejection of bid submissions with earnest money deposits below the tender threshold.
-5. **Evaluation Gating:** Prohibition of contract award prior to bid opening and qualification review.
-6. **Dispute Registration:** Acceptance of valid dispute filings within the 7-day standstill accompanied by a 1.0 ETH bond.
-7. **Standstill Expiration:** Rejection of dispute filings submitted after the 7-day statutory appeal window.
-8. **Winner Exclusion:** Prohibition against awarded winning bidders disputing their own contract award.
+1. **Proxy Initialization & Access Control:** ERC1967Proxy deployment with configurable multisig admin and disabled implementation initializers.
+2. **Access Control Enforcement:** Strict permission checks across PSU, Vendor, Keeper, CVC, and Admin roles.
+3. **Bid Submission & Deadline:** Rejection of bids submitted after the submission deadline or below minimum EMD.
+4. **Duplicate Bid Protection:** Prevention of multiple bids from the same vendor on a single tender.
+5. **Bid Reveal & Technical Score:** Cryptographic Keccak-256 reveal verification emitting `BidRevealed`.
+6. **Reveal Deadline Enforcement:** Rejection of bid revelations submitted after the reveal window closes.
+7. **On-Chain L1 Enforcement:** Guarantee that only the lowest qualified bidder (L1) with matching revealed bid can be awarded.
+8. **Dispute Ineligibility:** Rejection of disputes from non-bidders, awarded winners, or below dispute bond.
+9. **Dispute UPHELD Resolution:** Winner state reset and dispute bond refunded via pull payments.
+10. **Dispute DISMISSED Resolution:** Bond forfeited and transferred directly to treasury address.
+11. **14-Day CVC Resolution Timeout:** Automated timeout resolution releasing tenders stalled by inactive auditors.
+12. **Finalization & Pull Refunds:** Finalization crediting pull payment refunds to all bidders including the winner.
+13. **Tender Cancellation:** Safe tender cancellation returning escrowed EMD to bidders via pull payments.
 
 ---
 

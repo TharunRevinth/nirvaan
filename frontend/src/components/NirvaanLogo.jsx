@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * Official NIRVAAN Sovereign Consortium Logo
  * Combines:
- * - Hexagonal cryptographic blockchain shield (immutability & Besu consortium)
+ * - Hexagonal cryptographic blockchain shield (immutability & blockchain consensus)
  * - Stylized geometric 'N' monogram integrated into the structural facets
  * - Sacred eternal energy flame in radiant dual-tone gold (Petroleum & Gas)
  * - Cryptographic node vertices & verification rings

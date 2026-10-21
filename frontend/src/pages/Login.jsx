@@ -135,9 +135,9 @@ export default function Login({ setPortalRole, walletAddress, setWalletAddress }
                 <div className="bg-[#121624] p-4 rounded-xl border border-white/10 text-xs font-mono space-y-1.5">
                   <div className="text-white font-bold flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                    Network: Indian Oil Consortium Besu
+                    Network: Ethereum Sepolia Testnet
                   </div>
-                  <div className="text-slate-400 text-[11px] tabular-nums">Chain ID: 1337 // Gas Price: 0 Gwei (Consortium Free)</div>
+                  <div className="text-slate-400 text-[11px] tabular-nums">Chain ID: 11155111 // Public PoS Network</div>
                 </div>
 
                 <button

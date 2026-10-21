@@ -45,13 +45,31 @@ export async function uploadDocumentToIpfs(file) {
   formData.append('file', file);
 
   const headers = {};
-  const officerToken = localStorage.getItem('officer_token');
+  const officerToken = localStorage.getItem('nirvaan_token') || localStorage.getItem('officer_token');
+
   if (officerToken) {
     headers['Authorization'] = `Bearer ${officerToken}`;
-  }
-  const vendorWallet = localStorage.getItem('vendor_wallet');
-  if (vendorWallet) {
-    headers['x-vendor-address'] = vendorWallet;
+  } else if (window.ethereum) {
+    // Vendor upload auth: request challenge nonce from backend and sign with wallet
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (accounts && accounts.length > 0) {
+        const address = accounts[0];
+        const nonceRes = await fetch(`${API_URL}/api/ipfs/nonce?address=${encodeURIComponent(address)}`);
+        if (nonceRes.ok) {
+          const nonceData = await nonceRes.json();
+          const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [nonceData.message, address]
+          });
+          headers['x-vendor-address'] = address;
+          headers['x-vendor-nonce'] = nonceData.nonce;
+          headers['x-vendor-signature'] = signature;
+        }
+      }
+    } catch (authErr) {
+      console.warn('Vendor wallet signature declined or failed:', authErr.message);
+    }
   }
 
   const controller = new AbortController();

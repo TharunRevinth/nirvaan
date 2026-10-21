@@ -216,27 +216,6 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
         emdDeposited: ethers.formatEther(bidData.emdDeposited) + " ETH",
         submissionTime: new Date(Number(bidData.submissionTime) * 1000).toLocaleString()
       });
-
-      // Synchronize bid record to backend API
-      try {
-        await fetch(`${API_URL}/api/tenders/${currentTender.onChainId}/bids`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenderId: currentTender.onChainId,
-            vendor: `Registered Supplier (${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)})`,
-            vid: `VEN-${walletAddress.slice(2, 6).toUpperCase()}-X`,
-            vendorAddress: walletAddress,
-            amount: amount,
-            hash: commitmentHash,
-            cid: bidDocumentCid,
-            qualified: false
-          })
-        });
-      } catch (postErr) {
-        console.warn('Backend sync standby:', postErr);
-      }
-
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);

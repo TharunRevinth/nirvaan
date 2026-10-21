@@ -38,13 +38,13 @@ export default function ConfirmationModal({ isOpen, title, message, onConfirm, o
         {isSubmitting && (
           <div className="bg-[#FFF9F2] border border-[#F3DFC1] p-3 rounded-lg text-xs font-mono text-[#7A4510] flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#A13D2B] animate-ping" aria-hidden="true"></span>
-            <span>Broadcasting transaction to Besu QBFT network…</span>
+            <span>Broadcasting transaction to Ethereum Sepolia network…</span>
           </div>
         )}
 
         <div className="bg-[#FAFAF9] p-3 rounded-lg border border-[#E8E6E1] text-[11px] font-mono text-[#71716D] space-y-1 tabular-nums">
-          <div>Gas Policy: 0.00 Gwei (Consortium Free)</div>
-          <div>Consensus: 7/7 Multi-Validator QBFT</div>
+          <div>Network: Ethereum Sepolia (Chain ID 11155111)</div>
+          <div>Consensus: Proof-of-Stake (PoS)</div>
         </div>
 
         <div className="flex justify-end gap-2.5 pt-2">

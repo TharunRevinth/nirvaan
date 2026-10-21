@@ -54,6 +54,7 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
   const [desc, setDesc] = useState('');
   const [deadline, setDeadline] = useState(() => getDefaultDeadline(14));
   const [opening, setOpening] = useState(() => getDefaultOpening(getDefaultDeadline(14)));
+  const [revealDeadline, setRevealDeadline] = useState('');
   const [emd, setEmd] = useState('0.001');
   const [budget, setBudget] = useState('45000000');
   const [ipfsCid, setIpfsCid] = useState('');
@@ -146,10 +147,11 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
           title,
           category,
           desc,
-          deadline,
-          submissionDeadline: deadline,
-          opening,
-          openingTime: opening,
+          deadline: new Date(deadline).toISOString(),
+          submissionDeadline: new Date(deadline).toISOString(),
+          opening: new Date(opening).toISOString(),
+          openingTime: new Date(opening).toISOString(),
+          ...(revealDeadline ? { revealDeadline: new Date(revealDeadline).toISOString() } : {}),
           emd: emd,
           minEMD: emd,
           budget: budget || "45000000",
@@ -293,6 +295,10 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
               </span>
             </div>
 
+            <p className="text-[11px] text-[#71716D] bg-[#F5F4F0] p-2 rounded border border-[#E8E6E1]">
+              🌐 Note: All times shown in your local timezone and automatically converted to UTC on-chain.
+            </p>
+
             {/* Date & Time GUI Pickers */}
             <div className="space-y-1.5">
               <label htmlFor="submission-deadline-input" className="text-xs font-medium text-[#1A1A18] block">
@@ -331,6 +337,26 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
               {opening && deadline && new Date(opening).getTime() <= new Date(deadline).getTime() && (
                 <p className="text-[11px] text-red-600 font-medium">
                   ⚠️ Opening time must be scheduled strictly after the submission deadline.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="reveal-deadline-input" className="text-xs font-medium text-[#1A1A18] block">
+                Bid Reveal Deadline Date &amp; Time <span className="text-[#878682] font-normal text-[11px]">(Optional — defaults to 24h after opening)</span>
+              </label>
+              <input
+                id="reveal-deadline-input"
+                name="revealDeadline"
+                type="datetime-local"
+                min={opening || deadline || minDateString}
+                value={revealDeadline}
+                onChange={(e) => setRevealDeadline(e.target.value)}
+                className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] tabular-nums focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none cursor-pointer"
+              />
+              {revealDeadline && (
+                <p className="text-[11px] text-[#575753] font-mono">
+                  Reveal Deadline: <span className="font-semibold text-[#1A1A18]">{formatDisplayDate(revealDeadline)}</span>
                 </p>
               )}
             </div>

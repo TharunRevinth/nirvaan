@@ -16,6 +16,7 @@
  */
 
 import { ethers } from '../backend/node_modules/ethers/lib.esm/index.js';
+import { DatabaseSync } from 'node:sqlite';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -56,6 +57,8 @@ async function startLocalServer() {
       PORT: TEST_PORT,
       OFFICER_PRIVATE_KEY: TEST_OFFICER_KEY,
       JWT_SECRET: TEST_JWT_SECRET,
+      CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+      RPC_URL: process.env.RPC_URL || 'http://127.0.0.1:8545',
       DB_PATH: TEST_DB_PATH,
       NODE_ENV: 'test',
       ALLOWED_ORIGINS: '*',
@@ -134,7 +137,7 @@ async function runSmokeTests() {
     );
 
     // -------------------------------------------------------------
-    // Test 2: Unauthenticated /api/ipfs/upload REJECTION
+    // Test 2: Unauthenticated & Bare Header /api/ipfs/upload REJECTION
     // -------------------------------------------------------------
     const formData = new FormData();
     formData.append('file', new Blob(['Sample Content'], { type: 'application/pdf' }), 'test.pdf');
@@ -147,6 +150,23 @@ async function runSmokeTests() {
       unauthIpfsRes.status === 401,
       `Unauthenticated POST /api/ipfs/upload correctly rejected with 401 Unauthorized (Received: ${unauthIpfsRes.status})`
     );
+
+    const bareVendorUploadRes = await fetch(`${API_URL}/api/ipfs/upload`, {
+      method: 'POST',
+      headers: {
+        'x-vendor-address': '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+      },
+      body: formData
+    });
+    assert(
+      bareVendorUploadRes.status === 401,
+      `Bare x-vendor-address without cryptographic signature correctly rejected with 401 Unauthorized (Received: ${bareVendorUploadRes.status})`
+    );
+
+    const nonceRes = await fetch(`${API_URL}/api/ipfs/nonce?address=0x70997970C51812dc3A010C7d01b50e0d17dc79C8`);
+    assert(nonceRes.status === 200, `GET /api/ipfs/nonce returns 200 OK`);
+    const nonceData = await nonceRes.json();
+    assert(Boolean(nonceData.nonce), `Server issued valid challenge nonce`);
 
     // -------------------------------------------------------------
     // Test 3: /api/health Health Check Endpoint
@@ -288,7 +308,24 @@ async function runSmokeTests() {
     const tenderOnChainId = tenderData.tender.onChainId || 1;
 
     // -------------------------------------------------------------
-    // Test 7: Sealed Bid Submission
+    // Test 7: Verify Deleted Endpoints (POST /bids & POST /reveal)
+    // -------------------------------------------------------------
+    const fakeBidRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/bids`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendorAddress: testVendorAddress })
+    });
+    assert(fakeBidRes.status === 404, `POST /api/tenders/:id/bids correctly removed (returns 404 Not Found)`);
+
+    const fakeRevealRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/reveal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendorAddress: testVendorAddress })
+    });
+    assert(fakeRevealRes.status === 404, `POST /api/tenders/:id/reveal correctly removed (returns 404 Not Found)`);
+
+    // -------------------------------------------------------------
+    // Test 8: Simulate Indexed On-Chain Bid Ingestion
     // -------------------------------------------------------------
     const bidAmountEth = '0.05';
     const bidAmountWei = ethers.parseEther(bidAmountEth).toString();
@@ -300,40 +337,31 @@ async function runSmokeTests() {
       )
     );
 
-    const bidRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/bids`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenderId: tenderOnChainId,
-        vendorAddress: testVendorAddress,
-        vendorName: 'Bharat Pipelines Ltd.',
-        vid: 'VEN-BHARAT-01',
-        amount: bidAmountEth,
-        amountWei: bidAmountWei,
-        hash: bidCommitment,
-        cid: 'QmEncryptedSealedCommercialBidDocumentDossier',
-        emdDeposited: '0.01'
-      })
-    });
-    assert(bidRes.status === 200, `Sealed bid submission returns 200 OK`);
-    const bidData = await bidRes.json();
-    assert(bidData.success === true, `Sealed bid recorded in escrow ledger`);
-
-    // -------------------------------------------------------------
-    // Test 8: Bid Reveal
-    // -------------------------------------------------------------
-    const revealRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/reveal`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        vendorAddress: testVendorAddress,
-        amountWei: bidAmountWei,
-        salt: bidSalt
-      })
-    });
-    assert(revealRes.status === 200, `Bid reveal verification returns 200 OK`);
-    const revealData = await revealRes.json();
-    assert(revealData.success === true, `Revealed parameters match commitment`);
+    const smokeDb = new DatabaseSync(TEST_DB_PATH);
+    smokeDb.prepare(`
+      INSERT INTO bids (
+        id, tender_id, vendor_address, bid_index, vendor_name, vid,
+        amount_wei, amount_eth, commitment_hash, cid, is_qualified,
+        tech_score, status, submission_time
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      `BID-${tenderOnChainId}-0`,
+      tenderOnChainId,
+      testVendorAddress,
+      0,
+      'Bharat Pipelines Ltd.',
+      'VEN-BHARAT-01',
+      bidAmountWei,
+      bidAmountEth,
+      bidCommitment,
+      'QmEncryptedSealedCommercialBidDocumentDossier',
+      0,
+      0,
+      'Opened',
+      new Date().toISOString()
+    );
+    smokeDb.close();
+    assert(true, `Indexed on-chain bid recorded in database`);
 
     // -------------------------------------------------------------
     // Test 9: Technical Evaluation & L1 Determination

@@ -23,7 +23,7 @@ export default function ChainOfCustodyTimeline({ currentStage = 3, timelineData 
           Chain of Custody Ledger
         </h3>
         <span className="font-mono text-[11px] text-[#71716D] bg-[#FAFAF9] px-2.5 py-0.5 rounded border border-[#E8E6E1]">
-          Consensus Trail • Besu QBFT
+          Consensus Trail • Ethereum Sepolia
         </span>
       </div>
 

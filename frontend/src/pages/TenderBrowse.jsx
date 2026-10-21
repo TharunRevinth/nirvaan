@@ -55,8 +55,8 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
           </p>
         </div>
         <div className="text-left sm:text-right font-mono text-xs text-[#71716D] tabular-nums shrink-0 space-y-0.5">
-          <div>Gas Policy: <span className="font-semibold text-[#1A1A18]">0.00 Gwei Fixed</span></div>
-          <div>Consensus: <span className="text-emerald-700 font-semibold">QBFT Enterprise Consensus</span></div>
+          <div>Network: <span className="font-semibold text-[#1A1A18]">Ethereum Sepolia</span></div>
+          <div>Chain ID: <span className="text-emerald-700 font-semibold">11155111</span></div>
         </div>
       </div>
 

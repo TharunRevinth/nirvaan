@@ -279,8 +279,31 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Production Security, Relays & Sepolia Alignment (`backend/`, `frontend/`, `README.md`)
+
+1. **Tender Creation & Technical Scoring Relays (Phase 1)**:
+   - `TenderCreation.jsx`: Converted deadlines to `new Date(value).toISOString()`, eliminating timezone discrepancies on UTC Render containers. Added a visible note that times are selected in the user's local timezone. Added an optional reveal-deadline input.
+   - `backend/server.js`: In `createTender`, parsed the newly created tender ID directly from the `TenderCreated` event log in the transaction receipt.
+   - `backend/server.js`: Implemented `POST /api/tenders/:id/tech-score` as an authenticated relay (`authenticateOfficerToken` + strict tenant isolation check `tender.psu === req.officer.psu`), signing `setTechnicalScore` on-chain with the backend server wallet.
+   - `EvaluationAward.jsx`: Routed both technical scoring (`POST /api/tenders/:id/tech-score`) and tender awards (`POST /api/tenders/:id/award`) through the backend officer relays, freeing procurement officers from needing the contract deployer/admin private key in MetaMask.
+
+2. **Security Hardening & Endpoint Sanitization (Phase 2)**:
+   - Deleted unauthenticated endpoints `POST /api/tenders/:id/bids` and `POST /api/tenders/:id/reveal`; all bid data is sourced authentically from blockchain events via the indexer.
+   - Removed client-side bid sync call from `SealedBidSubmission.jsx`.
+   - Hardened `POST /api/ipfs/upload`: eliminated bare `x-vendor-address` authorization bypass. Mandated either an officer JWT or a vendor wallet cryptographic signature (`x-vendor-signature`) over a server-issued challenge nonce (`GET /api/ipfs/nonce`).
+   - Hardened server startup: fails immediately if `CONTRACT_ADDRESS`, `RPC_URL`, `JWT_SECRET`, or `OFFICER_PRIVATE_KEY` is missing; removed hardcoded `localhost:8545` and `0x5FbDB...` defaults.
+   - Removed `backend/data/*.json` from git tracking (`git rm --cached`) and added to `.gitignore`.
+
+3. **Text & Documentation Alignment (Phase 3)**:
+   - Cleaned all remaining "Besu", "0.00 Gwei", "7 validator nodes", and "Consortium Free" references across `ConfirmationModal.jsx`, `Landing.jsx`, `TenderBrowse.jsx`, `About.jsx`, `Login.jsx`, `ChainOfCustodyTimeline.jsx`, and `NirvaanLogo.jsx`, replacing them with Ethereum Sepolia PoS text.
+   - Updated `README.md` to reflect the 13 passing smart contract tests, Sepolia deployment, Vercel frontend, Render backend, Pinata IPFS, and zero hardcoded addresses.
+   - Updated smoke test suite (`scripts/smoke-test.js`) to verify 404 responses for deleted endpoints and test nonce generation.
+
+---
+
 ## Items Blocked or Incomplete
 
-*None*. Every item specified in the requirements across Phase 1 through Phase 5, the Vendor KYC Apply-Then-Approve flow, and the Tender Creation EMD/Revert Decoders has been completed, tested, and verified.
+*None*. Every item specified in the requirements across Phase 1 through Phase 5, the Vendor KYC Apply-Then-Approve flow, Tender Creation EMD/Revert Decoders, and the Demo Blockers / Security / Text phases has been completed, tested, and verified.
+
 
 

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
-import { CONTRACT_ADDRESS, RPC_URL } from '../config';
+import { CONTRACT_ADDRESS, RPC_URL, API_URL } from '../config';
 import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 const CONTRACT_ABI = [
@@ -109,31 +109,35 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
     loadOnChainBids();
   }, [currentTender?.onChainId]);
 
-  // Handle setting real technical score on-chain
+  // Handle setting real technical score on-chain via backend officer relay
   const handleSetScore = async (bidIndex, qualified, score) => {
-    if (!window.ethereum) {
-      triggerToast('Web3 wallet required to sign technical qualification.', 'error');
+    const token = localStorage.getItem('nirvaan_token');
+    if (!token) {
+      triggerToast('PSU Officer authentication required. Please sign in.', 'error');
       return;
     }
 
     setScoringIndex(bidIndex);
     try {
-      await ensureCorrectChain();
+      const res = await fetch(`${API_URL}/api/tenders/${currentTender.onChainId}/tech-score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bidIndex,
+          qualified,
+          score
+        })
+      });
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to record technical score on-chain');
+      }
 
-      const tx = await contract.setTechnicalScore(
-        Number(currentTender.onChainId),
-        bidIndex,
-        qualified,
-        score
-      );
-
-      triggerToast(`Setting technical score... Tx: ${tx.hash.substring(0, 18)}…`, 'info');
-      await tx.wait();
-      triggerToast(`Technical score recorded on-chain for Bid #${bidIndex}.`, 'success');
+      triggerToast(`Technical score recorded on-chain for Bid #${bidIndex}. Tx: ${data.txHash ? data.txHash.substring(0, 18) + '…' : 'Confirmed'}`, 'success');
       await loadOnChainBids();
     } catch (err) {
       console.error('Technical qualification error:', err);
@@ -150,34 +154,43 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
 
   const l1Bid = qualifiedOpenedBids[0];
 
-  // Award the contract to actual L1 bidder
+  // Award the contract to actual L1 bidder via backend officer relay
   const handleAwardConfirm = async () => {
     if (!l1Bid) {
       triggerToast('No qualified unsealed bids found to award.', 'error');
       return;
     }
 
+    const token = localStorage.getItem('nirvaan_token');
+    if (!token) {
+      triggerToast('PSU Officer authentication required. Please sign in.', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await ensureCorrectChain();
+      const res = await fetch(`${API_URL}/api/tenders/${currentTender.onChainId}/award`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          winner: l1Bid.vendorAddress,
+          winningBidId: l1Bid.id,
+          winningBidAmount: l1Bid.amountEth || (l1Bid.amountWei ? ethers.formatEther(l1Bid.amountWei) : '0.05'),
+          winnerName: l1Bid.vendorName || `Vendor (${l1Bid.vendorAddress.slice(0, 6)}…)`
+        })
+      });
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-
-      const tx = await contract.awardTender(
-        Number(currentTender.onChainId),
-        l1Bid.vendorAddress,
-        l1Bid.id,
-        l1Bid.amountWei
-      );
-
-      triggerToast(`Award transaction sent: ${tx.hash.substring(0, 18)}…`, 'info');
-      const receipt = await tx.wait();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to execute contract award');
+      }
 
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Tender #${currentTender.onChainId} awarded on-chain to L1 bidder in Block #${receipt.blockNumber}.`, 'success');
+      triggerToast(`Tender #${currentTender.onChainId} awarded on-chain to L1 bidder (Block #${data.blockNumber || 'confirmed'}). Tx: ${data.txHash ? data.txHash.substring(0, 18) + '…' : 'Mined'}`, 'success');
 
       await loadOnChainBids();
     } catch (err) {

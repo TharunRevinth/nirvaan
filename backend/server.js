@@ -38,8 +38,8 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const SERVER_PRIVATE_KEY = process.env.OFFICER_PRIVATE_KEY;
-const RPC_URL = process.env.RPC_URL || 'http://127.0.0.1:8545';
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const RPC_URL = process.env.RPC_URL || process.env.SEPOLIA_RPC_URL;
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 
 // -----------------------------------------------------------------------
 // SECURITY HEADERS & RATE LIMITING & CORS
@@ -107,7 +107,9 @@ const CONTRACT_ABI = [
   "function registeredVendors(address) external view returns (bool)",
   "function vendorKYC(address) external view returns (bytes32 gstinHash, bytes32 panHash, string memory kycIpfsHash, uint256 registeredAt)",
   "function tenders(uint256) external view returns (uint256 id, address psuAddress, string memory ipfsHashDoc, uint256 submissionDeadline, uint256 openingTime, uint256 revealDeadline, uint256 appealDeadline, uint256 minEMDAmount, uint8 status, address winner, uint256 winningBidId, uint256 winningBidAmount)",
-  "function tenderCounter() external view returns (uint256)"
+  "function tenderCounter() external view returns (uint256)",
+  "function setTechnicalScore(uint256 _tenderId, uint256 _bidIndex, bool _qualified, uint256 _score) external",
+  "event TenderCreated(uint256 indexed tenderId, address indexed psu, uint256 deadline)"
 ];
 
 const contractInstance = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, serverWallet);
@@ -230,7 +232,11 @@ function authenticateAdminOrOfficer(req, res, next) {
   return authenticateOfficerToken(req, res, next);
 }
 
+// In-memory single-use nonces for vendor wallet IPFS upload authorization (5-minute TTL)
+const ipfsUploadNonces = new Map(); // address.toLowerCase() -> { nonce, expiresAt }
+
 function authenticateUpload(req, res, next) {
+  // 1. Officer JWT authorization
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
@@ -239,17 +245,49 @@ function authenticateUpload(req, res, next) {
       req.user = decoded;
       return next();
     } catch (err) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid token for file upload.' });
+      return res.status(401).json({ error: 'Unauthorized: Invalid or expired officer token for file upload.' });
     }
   }
 
+  // 2. Vendor wallet signature over a server-issued nonce
   const vendorAddress = req.headers['x-vendor-address'];
-  if (vendorAddress && ethers.isAddress(vendorAddress)) {
-    req.user = { role: 'Vendor', address: vendorAddress };
-    return next();
+  const vendorNonce = req.headers['x-vendor-nonce'];
+  const vendorSignature = req.headers['x-vendor-signature'];
+
+  if (vendorAddress && vendorNonce && vendorSignature) {
+    if (!ethers.isAddress(vendorAddress)) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid vendor wallet address.' });
+    }
+
+    const lowerAddr = vendorAddress.toLowerCase();
+    const stored = ipfsUploadNonces.get(lowerAddr);
+
+    if (!stored || stored.nonce !== vendorNonce || stored.expiresAt < Date.now()) {
+      ipfsUploadNonces.delete(lowerAddr);
+      return res.status(401).json({ error: 'Unauthorized: Invalid, expired, or non-existent upload nonce. Request a new nonce via GET /api/ipfs/nonce.' });
+    }
+
+    // Single-use: delete nonce immediately to prevent replay attacks
+    ipfsUploadNonces.delete(lowerAddr);
+
+    const expectedMessage = `Sign this message to authenticate file upload to NIRVAAN IPFS: ${vendorNonce}`;
+    try {
+      const recoveredAddress = ethers.verifyMessage(expectedMessage, vendorSignature);
+      if (recoveredAddress.toLowerCase() !== lowerAddr) {
+        return res.status(401).json({ error: 'Unauthorized: Cryptographic wallet signature does not match claimed vendor address.' });
+      }
+
+      req.user = { role: 'Vendor', address: vendorAddress };
+      return next();
+    } catch (sigErr) {
+      return res.status(401).json({ error: 'Unauthorized: Failed to verify vendor cryptographic wallet signature.' });
+    }
   }
 
-  return res.status(401).json({ error: 'Unauthorized: Officer session or vendor wallet credentials required for upload.' });
+  // Reject bare x-vendor-address or missing credentials
+  return res.status(401).json({
+    error: 'Unauthorized: IPFS upload requires either an officer JWT or a vendor wallet cryptographic signature over a server-issued nonce.'
+  });
 }
 
 // -----------------------------------------------------------------------
@@ -576,10 +614,27 @@ app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
       );
 
       const receipt = await tx.wait();
-      const newCounter = await contractInstance.tenderCounter();
-      tenderIdNum = Number(newCounter);
       txHash = tx.hash;
       blockNumber = receipt.blockNumber;
+
+      // Read the new tender ID from the TenderCreated event in the transaction receipt
+      let eventFound = false;
+      for (const log of receipt.logs || []) {
+        try {
+          const parsed = contractInstance.interface.parseLog(log);
+          if (parsed && parsed.name === 'TenderCreated') {
+            tenderIdNum = Number(parsed.args.tenderId);
+            eventFound = true;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (!eventFound) {
+        // Fallback to tenderCounter() if receipt log parsing is unsupported by mock
+        const newCounter = await contractInstance.tenderCounter();
+        tenderIdNum = Number(newCounter);
+      }
     } catch (contractErr) {
       if (process.env.NODE_ENV === 'test') {
         const lastRow = db.prepare('SELECT MAX(on_chain_id) as max_id FROM tenders').get();
@@ -675,114 +730,69 @@ app.get('/api/tenders/:id/bids', (req, res) => {
   }
 });
 
-// POST /api/tenders/:id/bids — Record a new revealed bid
-app.post('/api/tenders/:id/bids', (req, res) => {
+// -----------------------------------------------------------------------
+// EVALUATION & CONTRACT AWARD RELAYS
+// -----------------------------------------------------------------------
+
+// POST /api/tenders/:id/tech-score — Technical Score Evaluation Relay with Strict Tenant Isolation
+app.post('/api/tenders/:id/tech-score', authenticateOfficerToken, async (req, res) => {
   try {
     const numericId = parseNumericTenderId(req.params.id);
     if (numericId === null) {
       return res.status(400).json({ error: `Invalid tender ID '${req.params.id}': Tender IDs must be strictly numeric integers.` });
     }
 
-    const { vendor, vid, vendorAddress, amount, hash, cid, qualified, techScore } = req.body;
-    if (!vendorAddress || !ethers.isAddress(vendorAddress)) {
-      return res.status(400).json({ error: 'Valid vendor Ethereum address required.' });
+    const tenderRecord = db.prepare('SELECT * FROM tenders WHERE on_chain_id = ?').get(numericId);
+    if (!tenderRecord) {
+      return res.status(404).json({ error: `Tender #${numericId} not found in procurement database.` });
     }
 
-    let emdWei;
-    try {
-      emdWei = parseEtherAmount(amount, "Bid");
-    } catch (parseErr) {
-      return res.status(400).json({ error: parseErr.message });
-    }
-    const bidId = `BID-${numericId}-${vendorAddress.slice(2, 6)}`;
-
-    db.prepare(`
-      INSERT INTO bids (
-        id, tender_id, vendor_address, bid_index, vendor_name, vid,
-        amount_wei, amount_eth, commitment_hash, cid, is_qualified,
-        tech_score, status, submission_time
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        amount_wei = excluded.amount_wei,
-        amount_eth = excluded.amount_eth,
-        is_qualified = excluded.is_qualified,
-        tech_score = excluded.tech_score
-    `).run(
-      bidId,
-      numericId,
-      vendorAddress,
-      0,
-      vendor || `Vendor (${vendorAddress.slice(0, 6)}…)`,
-      vid || `VEN-${vendorAddress.slice(2, 6).toUpperCase()}-X`,
-      emdWei.toString(),
-      ethers.formatEther(emdWei),
-      hash || ethers.ZeroHash,
-      cid || 'QmDefaultBidHash',
-      qualified ? 1 : 0,
-      techScore || 90,
-      'Opened',
-      new Date().toISOString()
-    );
-
-    return res.json({ success: true, bidId });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/tenders/:id/reveal — Cryptographic Bid Reveal Verification
-app.post('/api/tenders/:id/reveal', (req, res) => {
-  try {
-    const numericId = parseNumericTenderId(req.params.id);
-    if (numericId === null) {
-      return res.status(400).json({ error: 'Invalid tender ID.' });
-    }
-    const { vendorAddress, amountWei, salt } = req.body;
-    if (!vendorAddress || !amountWei || !salt) {
-      return res.status(400).json({ error: 'vendorAddress, amountWei, and salt required.' });
+    // STRICT TENANT ISOLATION: tender.psu === req.officer.psu
+    if (!req.officer || !req.officer.psu || req.officer.psu.toUpperCase() !== tenderRecord.psu.toUpperCase()) {
+      return res.status(403).json({
+        error: `Tenant Isolation Violation: Tender #${numericId} belongs to ${tenderRecord.psu}. You are authenticated under ${req.officer?.psu || 'Unknown'}.`
+      });
     }
 
-    const computedCommitment = ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(
-        ['address', 'uint256', 'bytes32', 'uint256'],
-        [vendorAddress, amountWei, salt, numericId]
-      )
-    );
-
-    const bid = db.prepare('SELECT * FROM bids WHERE tender_id = ? AND vendor_address = ?').get(numericId, vendorAddress);
-    if (!bid) {
-      return res.status(404).json({ error: 'No sealed bid found for this vendor and tender.' });
-    }
-
-    if (bid.commitment_hash.toLowerCase() !== computedCommitment.toLowerCase()) {
-      return res.status(400).json({ error: 'Cryptographic commitment mismatch. Tampering detected.' });
-    }
-
-    db.prepare(`
-      UPDATE bids SET status = 'Opened', amount_wei = ?, amount_eth = ?
-      WHERE tender_id = ? AND vendor_address = ?
-    `).run(amountWei, ethers.formatEther(amountWei), numericId, vendorAddress);
-
-    return res.json({ success: true, verified: true, computedCommitment });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/tenders/:id/tech-score — Technical Score Evaluation Relay
-app.post('/api/tenders/:id/tech-score', authenticateOfficerToken, (req, res) => {
-  try {
-    const numericId = parseNumericTenderId(req.params.id);
-    if (numericId === null) {
-      return res.status(400).json({ error: 'Invalid tender ID.' });
-    }
     const { bidIndex, qualified, score } = req.body;
+    const bidIdx = parseInt(bidIndex, 10) || 0;
+    const isQual = Boolean(qualified);
+    const scoreVal = parseInt(score, 10) || (isQual ? 90 : 50);
+
+    let txHash = '0xsimulated_tech_score_tx';
+    let blockNumber = 1;
+
+    try {
+      // Execute setTechnicalScore on smart contract using server wallet
+      const tx = await contractInstance.setTechnicalScore(
+        numericId,
+        bidIdx,
+        isQual,
+        scoreVal
+      );
+      const receipt = await tx.wait();
+      txHash = tx.hash;
+      blockNumber = receipt.blockNumber;
+    } catch (contractErr) {
+      if (process.env.NODE_ENV !== 'test') {
+        throw contractErr;
+      }
+    }
+
     db.prepare(`
       UPDATE bids SET is_qualified = ?, tech_score = ?
       WHERE tender_id = ? AND (bid_index = ? OR rowid = ?)
-    `).run(qualified ? 1 : 0, score || 90, numericId, bidIndex || 0, (bidIndex || 0) + 1);
+    `).run(isQual ? 1 : 0, scoreVal, numericId, bidIdx, bidIdx + 1);
 
-    return res.json({ success: true, tenderId: numericId, qualified: Boolean(qualified), score: score || 90 });
+    return res.json({
+      success: true,
+      tenderId: numericId,
+      bidIndex: bidIdx,
+      qualified: isQual,
+      score: scoreVal,
+      txHash,
+      blockNumber
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -1422,6 +1432,24 @@ function toBase58(buffer) {
   return digits.reverse().map(d => ALPHABET[d]).join("");
 }
 
+// GET /api/ipfs/nonce — Issue single-use challenge nonce for vendor upload authorization
+app.get('/api/ipfs/nonce', (req, res) => {
+  const address = req.query.address;
+  if (!address || !ethers.isAddress(address)) {
+    return res.status(400).json({ error: 'Valid Ethereum wallet address required.' });
+  }
+
+  const nonce = crypto.randomUUID();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5-minute validity
+  ipfsUploadNonces.set(address.toLowerCase(), { nonce, expiresAt });
+
+  return res.json({
+    nonce,
+    address,
+    message: `Sign this message to authenticate file upload to NIRVAAN IPFS: ${nonce}`
+  });
+});
+
 app.post('/api/ipfs/upload', authenticateUpload, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -1560,6 +1588,19 @@ app.get('/api/ipfs/:cid', async (req, res) => {
 
 async function startServer() {
   try {
+    // Fail startup if CONTRACT_ADDRESS, RPC_URL, JWT_SECRET or OFFICER_PRIVATE_KEY is missing (no localhost or 0x5FbD defaults)
+    const missingVars = [];
+    if (!CONTRACT_ADDRESS) missingVars.push('CONTRACT_ADDRESS');
+    if (!RPC_URL) missingVars.push('RPC_URL (or SEPOLIA_RPC_URL)');
+    if (!JWT_SECRET) missingVars.push('JWT_SECRET');
+    if (!SERVER_PRIVATE_KEY) missingVars.push('OFFICER_PRIVATE_KEY');
+
+    if (missingVars.length > 0) {
+      console.error(`\n[FATAL STARTUP ERROR] Missing required environment variables: ${missingVars.join(', ')}.`);
+      console.error('Hardcoded localhost and 0x5FbD test defaults have been removed. Provide explicit configuration to start the server.\n');
+      process.exit(1);
+    }
+
     // 1. Seed PSU officers into ephemeral SQLite DB if empty
     seedOfficersFromEnv();
 

@@ -41,9 +41,9 @@ export default function About() {
           </div>
 
           <div className="bg-white border border-[#E8E6E1] rounded-xl p-5 space-y-2">
-            <h3 className="font-semibold text-sm text-[#1A1A18]">Zero-Gas Besu QBFT Consensus</h3>
+            <h3 className="font-semibold text-sm text-[#1A1A18]">Ethereum Sepolia Consensus</h3>
             <p className="text-xs text-[#575753] leading-relaxed">
-              Operates on an enterprise Hyperledger Besu consortium blockchain with QBFT consensus across 7 validator nodes (5 PSUs, 1 CVC audit node, 1 Ministry node), ensuring zero gas fees and instant block finality.
+              Operates on the public Ethereum Sepolia network (Chain ID 11155111) with decentralized Proof-of-Stake consensus, ensuring immutable transparent state execution and complete auditability across all procurement stakeholders.
             </p>
           </div>
 

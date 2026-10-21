@@ -291,14 +291,14 @@ export default function Landing({ triggerToast }) {
               <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-lg p-3.5 space-y-2 text-xs">
                 <div className="flex justify-between text-[#575753]">
                   <span>Network</span>
-                  <span className="font-mono font-medium text-[#1A1A18]">Besu QBFT Consortium</span>
+                  <span className="font-mono font-medium text-[#1A1A18]">Ethereum Sepolia Testnet</span>
                 </div>
                 <div className="flex justify-between text-[#575753]">
-                  <span>Gas policy</span>
-                  <span className="font-mono text-[#1A1A18]">0.00 Gwei (Fixed)</span>
+                  <span>Chain ID</span>
+                  <span className="font-mono text-[#1A1A18]">11155111</span>
                 </div>
                 <div className="flex justify-between text-[#575753]">
-                  <span>Encryption standard</span>
+                  <span>Commitment standard</span>
                   <span className="font-mono text-[#1A1A18]">Client-side Keccak-256</span>
                 </div>
               </div>
