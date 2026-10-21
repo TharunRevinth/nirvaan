@@ -301,9 +301,32 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Tender Detail Mock Data Elimination & Real Custody Ledger (`frontend/`)
+
+1. **Dynamic Chain of Custody Timeline (`TenderDetail.jsx`, `ChainOfCustodyTimeline.jsx`)**:
+   - Replaced static mock stages (`Block #140,112`, hardcoded 2026 timestamps) with a dynamic timeline built strictly from the tender's real on-chain data: creation block number & tx hash, submission deadline, bid opening time, reveal deadline, and award block & tx hash.
+   - Evaluates each stage as `completed`, `active`, or `pending` based on real blockchain event state and current epoch time.
+   - Linked all transaction hashes (`txHash` and `awardTxHash`) directly to `https://sepolia.etherscan.io/tx/${hash}`.
+
+2. **Accurate IPFS Specification Dossier (`TenderDetail.jsx`)**:
+   - Replaced hardcoded `"technical_specifications_v2.4.pdf (4.8 MB)"` with the real document name (`${tender.title}.pdf` or `tender.fileName`) and anchored IPFS CID linking directly to the Pinata gateway.
+   - Completely removed the unverified `"Cryptographic Digest Verified (Keccak-256)"` claim.
+
+3. **Contextual Dispute Window Display (`TenderDetail.jsx`)**:
+   - Display of the statutory 7-day standstill appeal window is strictly restricted to tenders in `AWARDED` status; renders `"Not applicable"` for unawarded tenders.
+
+4. **Bid Evaluation UI Polish (`EvaluationAward.jsx`)**:
+   - Replaced premature `"DISQUALIFIED 0/100"` display on unassessed bids with a clean `"Pending evaluation"` status badge and label until an officer explicitly evaluates the submission.
+
+5. **Consortium Text Purge (`Sidebar.jsx`)**:
+   - Replaced legacy `"QBFT Enterprise Consensus"` in the sidebar support card with `"Ethereum Sepolia • Chain #11155111"`.
+
+---
+
 ## Items Blocked or Incomplete
 
-*None*. Every item specified in the requirements across Phase 1 through Phase 5, the Vendor KYC Apply-Then-Approve flow, Tender Creation EMD/Revert Decoders, and the Demo Blockers / Security / Text phases has been completed, tested, and verified.
+*None*. Every item specified in the requirements across all phases has been completed, tested, and verified.
+
 
 
 

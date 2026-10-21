@@ -300,11 +300,23 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
                       {b.status === 1 || b.status === 2 ? `${b.amountEth} ETH` : 'Sealed'}
                     </td>
                     <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.isQualified ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                        {b.isQualified ? 'QUALIFIED' : 'DISQUALIFIED'}
-                      </span>
+                      {b.techScore === 0 && !b.isQualified ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          Pending evaluation
+                        </span>
+                      ) : (
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.isQualified ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                          {b.isQualified ? 'QUALIFIED' : 'DISQUALIFIED'}
+                        </span>
+                      )}
                     </td>
-                    <td className="p-3">{b.techScore}/100</td>
+                    <td className="p-3">
+                      {b.techScore === 0 && !b.isQualified ? (
+                        <span className="text-[#71716D] italic text-[11px]">Pending evaluation</span>
+                      ) : (
+                        `${b.techScore}/100`
+                      )}
+                    </td>
                     <td className="p-3">
                       {!isAwarded && (
                         <div className="flex gap-1.5">

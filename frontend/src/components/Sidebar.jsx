@@ -158,7 +158,7 @@ export default function Sidebar() {
             <span>CVC Directives Compliant</span>
           </div>
           <p className="leading-relaxed">Consortium Helpdesk: 1800-11-2024</p>
-          <p className="font-mono text-[10px] mt-0.5 text-[#71716D] tabular-nums">QBFT Enterprise Consensus</p>
+          <p className="font-mono text-[10px] mt-0.5 text-[#71716D] tabular-nums">Ethereum Sepolia • Chain #11155111</p>
         </div>
       </aside>
     </>

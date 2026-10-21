@@ -1,19 +1,66 @@
 import React from 'react';
 
-export default function ChainOfCustodyTimeline({ currentStage = 3, timelineData }) {
-  const defaultStages = [
-    { title: 'Tender Initiated & Signed', timestamp: '2026-10-24 09:00:14 UTC', block: 'Block #140,112', status: 'completed' },
-    { title: 'Bidding Window Closed', timestamp: '2026-11-15 17:00:00 UTC', block: 'Block #142,500', status: 'completed' },
-    { title: 'Public Bids Revealed', timestamp: '2026-11-16 10:00:45 UTC', block: 'Block #142,890', status: 'completed' },
-    { 
-      title: 'Technical Qualification & Award', 
-      timestamp: currentStage >= 4 ? '2026-09-16 16:42:15 UTC' : 'Pending Finalization', 
-      block: currentStage >= 4 ? 'Block #142,950' : 'Block TBD', 
-      status: currentStage >= 4 ? 'completed' : 'pending' 
-    },
-  ];
+function formatDate(dateVal) {
+  if (!dateVal) return 'Pending';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+  } catch (e) {
+    return String(dateVal);
+  }
+}
 
-  const stages = timelineData || defaultStages;
+export default function ChainOfCustodyTimeline({ tender, timelineData }) {
+  let stages = timelineData;
+
+  if (!stages && tender) {
+    const now = Date.now();
+    const isDeadlinePassed = tender.deadline ? now >= new Date(tender.deadline).getTime() : false;
+    const isOpeningPassed = tender.opening ? now >= new Date(tender.opening).getTime() : false;
+    const isRevealPassed = tender.revealDeadline ? now >= new Date(tender.revealDeadline).getTime() : false;
+    const isAwarded = tender.status === 'AWARDED' || tender.status === 'Finalized';
+
+    stages = [
+      {
+        title: 'Tender Initiated & Anchored',
+        timestamp: tender.blockNumber ? `Mined at Block #${tender.blockNumber}` : 'Recorded On-Chain',
+        block: tender.blockNumber ? `Block #${tender.blockNumber}` : 'Confirmed',
+        txHash: tender.txHash || null,
+        status: 'completed'
+      },
+      {
+        title: 'Bidding Submission Window',
+        timestamp: tender.deadline ? (isDeadlinePassed ? `Closed: ${formatDate(tender.deadline)}` : `Open until: ${formatDate(tender.deadline)}`) : 'Date TBD',
+        block: isDeadlinePassed ? 'Bidding Period Closed' : 'Accepting Sealed Bids',
+        status: isDeadlinePassed || isAwarded ? 'completed' : 'active'
+      },
+      {
+        title: 'Public Opening & Reveal',
+        timestamp: tender.opening ? (isOpeningPassed ? `Opened: ${formatDate(tender.opening)}` : `Opening: ${formatDate(tender.opening)}`) : 'Date TBD',
+        block: isRevealPassed || isAwarded ? 'Reveal Period Concluded' : (isOpeningPassed ? 'Reveal Active' : 'Pending Opening'),
+        status: isRevealPassed || isAwarded ? 'completed' : (isOpeningPassed ? 'active' : 'pending')
+      },
+      {
+        title: 'L1 Award & Standstill',
+        timestamp: isAwarded ? `Awarded to ${tender.winner || (tender.winnerAddress ? tender.winnerAddress.substring(0, 10) + '…' : 'L1 Bidder')}` : 'Pending Evaluation',
+        block: isAwarded ? (tender.awardBlock ? `Block #${tender.awardBlock}` : 'Mined On-Chain') : 'Pending L1 Award',
+        txHash: isAwarded ? (tender.awardTxHash || null) : null,
+        status: isAwarded ? 'completed' : 'pending'
+      }
+    ];
+  }
+
+  if (!stages) {
+    stages = [];
+  }
 
   return (
     <section aria-label="On-Chain Chain of Custody Timeline" className="rounded-xl p-5 space-y-4 bg-white border border-[#E8E6E1] shadow-xs">
@@ -29,8 +76,8 @@ export default function ChainOfCustodyTimeline({ currentStage = 3, timelineData 
 
       <ol className="grid grid-cols-1 md:grid-cols-4 gap-4 relative py-1 list-none p-0 m-0">
         {stages.map((stage, idx) => {
-          const isCompleted = idx < currentStage;
-          const isActive = idx === currentStage - 1;
+          const isCompleted = stage.status === 'completed';
+          const isActive = stage.status === 'active';
 
           return (
             <li key={idx} className="flex flex-col items-start relative pl-4 md:pl-0 border-l-2 md:border-l-0 md:border-t-2 border-[#E8E6E1] pt-2 md:pt-3">
@@ -56,6 +103,18 @@ export default function ChainOfCustodyTimeline({ currentStage = 3, timelineData 
               <div className="font-mono text-[10px] text-[#71716D] mt-0.5 tabular-nums">
                 {stage.block}
               </div>
+
+              {stage.txHash && (
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${stage.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-[10px] text-blue-600 hover:text-blue-800 underline mt-1 truncate max-w-full block"
+                  title={`View on Etherscan: ${stage.txHash}`}
+                >
+                  {stage.txHash.substring(0, 10)}…{stage.txHash.slice(-6)} ↗
+                </a>
+              )}
             </li>
           );
         })}

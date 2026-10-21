@@ -91,9 +91,7 @@ export default function TenderDetail({ tenders }) {
       </div>
 
       {/* Signature Element: Chain of Custody Timeline */}
-      <ChainOfCustodyTimeline 
-        currentStage={tender.status === 'AWARDED' ? 4 : (isDeadlineOver || tender.isExpired) ? 3 : 1} 
-      />
+      <ChainOfCustodyTimeline tender={tender} />
 
       {/* Official Contract Award & Winner Announcement (L1 Determination) */}
       {tender.status === 'AWARDED' && (
@@ -143,11 +141,23 @@ export default function TenderDetail({ tenders }) {
 
             <div className="bg-white p-3.5 rounded-lg border border-emerald-200/80 shadow-2xs">
               <span className="text-[#71716D] block text-[11px] font-medium">On-Chain Award Hash:</span>
-              <span className="font-mono text-[11px] font-semibold text-[#1A1A18] block mt-0.5 truncate" title={tender.awardTxHash || 'Recorded on Blockchain'}>
-                {tender.awardTxHash ? `${tender.awardTxHash.substring(0, 16)}…` : 'Recorded on Blockchain'}
-              </span>
+              {tender.awardTxHash ? (
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${tender.awardTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-[11px] font-semibold text-blue-700 hover:text-blue-900 underline block mt-0.5 truncate"
+                  title={tender.awardTxHash}
+                >
+                  {tender.awardTxHash.substring(0, 16)}… ↗
+                </a>
+              ) : (
+                <span className="font-mono text-[11px] font-semibold text-[#1A1A18] block mt-0.5">
+                  Recorded on Blockchain
+                </span>
+              )}
               <span className="text-[10px] font-mono text-emerald-800 block mt-0.5">
-                {tender.awardBlock || 'Consortium Block'} • Mined on Consortium
+                {tender.awardBlock ? `Block #${tender.awardBlock}` : 'Mined on Sepolia'}
               </span>
             </div>
           </div>
@@ -169,14 +179,21 @@ export default function TenderDetail({ tenders }) {
             <h3 className="font-semibold text-xs text-[#1A1A18]">IPFS Specification Dossier</h3>
             <div className="bg-[#FAFAF9] p-3.5 rounded-lg border border-[#E8E6E1] text-xs font-mono space-y-1.5 tabular-nums">
               <div className="break-all text-[#575753]">
-                IPFS CID: <span className="text-[#1A1A18] font-bold">{tender.cid || 'Not Anchored'}</span>
+                IPFS CID: {tender.cid ? (
+                  <a
+                    href={`https://gateway.pinata.cloud/ipfs/${tender.cid}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-700 hover:text-blue-900 underline font-bold"
+                  >
+                    {tender.cid} ↗
+                  </a>
+                ) : (
+                  <span className="text-[#1A1A18] font-bold">Not Anchored</span>
+                )}
               </div>
               <div className="text-[#71716D]">
-                Document: <span className="text-[#1A1A18] font-medium">technical_specifications_v2.4.pdf</span> (4.8 MB)
-              </div>
-              <div className="text-emerald-700 font-medium flex items-center gap-1.5 text-[11px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                <span>Cryptographic Digest Verified (Keccak-256)</span>
+                Document: <span className="text-[#1A1A18] font-medium">{tender.fileName || `${tender.title || 'Technical_Specification'}.pdf`}</span>
               </div>
             </div>
           </div>
@@ -215,13 +232,19 @@ export default function TenderDetail({ tenders }) {
 
             <div>
               <span className="text-[#71716D] block">Dispute Window Status:</span>
-              <span className={`font-mono text-[11px] font-medium px-2 py-0.5 rounded border inline-block mt-1 ${
-                tender.appealWindowClosed 
-                  ? 'bg-[#FAFAF9] text-[#71716D] border-[#E8E6E1]' 
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              }`}>
-                {tender.appealWindowClosed ? 'APPEAL WINDOW CLOSED' : 'APPEALS OPEN (7-DAY STANDSTILL)'}
-              </span>
+              {tender.status === 'AWARDED' ? (
+                <span className={`font-mono text-[11px] font-medium px-2 py-0.5 rounded border inline-block mt-1 ${
+                  tender.appealWindowClosed 
+                    ? 'bg-[#FAFAF9] text-[#71716D] border-[#E8E6E1]' 
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}>
+                  {tender.appealWindowClosed ? 'APPEAL WINDOW CLOSED' : 'APPEALS OPEN (7-DAY STANDSTILL)'}
+                </span>
+              ) : (
+                <span className="font-mono text-[11px] font-medium px-2 py-0.5 rounded border inline-block mt-1 bg-[#FAFAF9] text-[#71716D] border-[#E8E6E1]">
+                  Not applicable
+                </span>
+              )}
             </div>
           </div>
         </div>
