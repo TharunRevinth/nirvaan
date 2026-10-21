@@ -156,6 +156,7 @@ async function runSmokeTests() {
     const healthData = await healthRes.json();
     assert(healthData.status === 'healthy', `Health status is "healthy"`);
     assert(typeof healthData.network.indexerLag === 'number', `Health reports valid indexerLag (${healthData.network.indexerLag})`);
+    assert(healthData.indexerError !== undefined, `Health reports indexerError (${healthData.indexerError})`);
     assert(healthData.keeper && healthData.keeper.status, `Health reports keeper status ("${healthData.keeper.status}")`);
 
     // -------------------------------------------------------------

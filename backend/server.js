@@ -114,6 +114,7 @@ app.get('/api/health', async (req, res) => {
     const lastIndexedBlock = indexer.getLastIndexedBlock();
     const keeperStatus = getKeeperStatus();
     const indexerLag = Math.max(0, Number(latestBlock) - Number(lastIndexedBlock));
+    const indexerError = indexer.getLastError();
 
     res.json({
       status: 'healthy',
@@ -124,8 +125,11 @@ app.get('/api/health', async (req, res) => {
         chainId: parseInt(process.env.CHAIN_ID || '11155111', 10),
         latestBlock,
         indexedBlock: lastIndexedBlock,
-        indexerLag
+        indexerLag,
+        indexerError
       },
+      indexerLag,
+      indexerError,
       keeper: {
         status: keeperStatus.healthy ? (keeperStatus.initialized ? 'running' : 'idle') : 'degraded',
         lastRunAt: keeperStatus.lastRunAt,
@@ -224,18 +228,6 @@ function authenticateUpload(req, res, next) {
 
   return res.status(401).json({ error: 'Unauthorized: Officer session or vendor wallet credentials required for upload.' });
 }
-
-// -----------------------------------------------------------------------
-// HEALTH CHECK
-// -----------------------------------------------------------------------
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    psuConsortium: 'NIRVAAN',
-    database: 'SQLite WAL Active',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // -----------------------------------------------------------------------
 // OFFICER AUTHENTICATION (SQLITE PERSISTENCE)
@@ -1117,8 +1109,12 @@ async function startServer() {
     // 2. Reconstruct ephemeral DB state from blockchain events starting from DEPLOY_BLOCK
     const deployBlock = parseInt(process.env.DEPLOY_BLOCK || '0', 10);
     console.log(`[STARTUP] Reconstructing state from chain events (DEPLOY_BLOCK: ${deployBlock})...`);
-    await indexer.syncFromChain({ isStartup: true });
-    console.log(`[STARTUP] Ephemeral database synchronized with blockchain.`);
+    const syncResult = await indexer.syncFromChain({ isStartup: true });
+    if (syncResult && syncResult.success) {
+      console.log(`[STARTUP] Ephemeral database synchronized with blockchain.`);
+    } else {
+      console.error(`[STARTUP] Blockchain sync failed during startup: ${indexer.getLastError() || 'Unknown error'}. Server starting in degraded mode; indexer will continue retrying in background.`);
+    }
 
     // 3. Start embedded keeper inside backend process (single service deployment)
     await startEmbeddedKeeper({

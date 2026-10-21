@@ -5,8 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:contracts && npm run lint:backend && npm run build:frontend && npm run scan:secrets && npm run test:smoke",
+    "test": "npm run test:contracts && npm run test:backend && npm run lint:backend && npm run build:frontend && npm run scan:secrets && npm run test:smoke",
     "test:contracts": "cd contracts && npx hardhat test test/OilTendering.test.js",
+    "test:backend": "cd backend && npm test",
     "test:smoke": "node scripts/smoke-test.js",
     "scan:secrets": "node scripts/scan-secrets.js",
     "build:frontend": "cd frontend && npm run build",

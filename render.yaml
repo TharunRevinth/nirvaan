@@ -24,6 +24,8 @@ services:
         sync: false
       - key: DEPLOY_BLOCK
         sync: false
+      - key: INDEXER_BATCH_SIZE
+        value: "10"
       - key: JWT_SECRET
         sync: false
       - key: OFFICER_PRIVATE_KEY

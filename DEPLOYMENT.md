@@ -106,6 +106,7 @@ Render's free tier provides a free web service without persistent disks or backg
    | `RPC_URL` | `https://rpc.sepolia.org` | Matching JSON-RPC Endpoint |
    | `CONTRACT_ADDRESS` | `0xYourDeployedProxyAddress` | From Step 1 |
    | `DEPLOY_BLOCK` | `6842000` | Block number from Step 1 |
+   | `INDEXER_BATCH_SIZE` | `10` | Log query batch size (default 10; respects Alchemy free-tier limits) |
    | `JWT_SECRET` | *(Random 32+ char string)* | Secure session token secret |
    | `OFFICER_PRIVATE_KEY` | *(64-hex private key)* | Private key for officer backend relay |
    | `KEEPER_PRIVATE_KEY` | *(64-hex private key)* | Private key for embedded keeper wallet |
@@ -115,6 +116,11 @@ Render's free tier provides a free web service without persistent disks or backg
    | `DB_PATH` | `/tmp/nirvaan.db` | Ephemeral in-memory/temp SQLite path |
    | `KEEPER_POLL_INTERVAL_S`| `20` | Keeper poll interval (15-30s) |
    | `OFFICER_SEED_JSON` | `[{"username":"iocl_officer","password":"YourPassword123!","psu":"IOCL","officerId":"IOCL-8821","email":"iocl_officer@procurement.gov.in"}]` | Seed credentials |
+
+> [!TIP]
+> **RPC Provider Compatibility (Alchemy / Infura / Public RPCs)**:
+> Alchemy's free tier limits `eth_getLogs` to 10 blocks. The NIRVAAN indexer defaults `INDEXER_BATCH_SIZE=10`. If an RPC provider returns a "range too large" error, the indexer automatically parses the suggested range or halves the batch size dynamically and immediately retries. If an indexer failure occurs, it will not report false synchronization, keeps retrying in the background every 20 seconds, and reports `indexerLag` and `indexerError` via `/api/health`.
+
 6. Click **Deploy Web Service**.
 7. Once deployed, note your Render URL (e.g. `https://nirvaan-backend.onrender.com`).
 

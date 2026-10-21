@@ -28,17 +28,109 @@ const STATUS_NAMES = [
   'Cancelled'
 ];
 
+/**
+ * Extracts a unified error message string across various RPC client error wrappers.
+ */
+export function getFullErrorMessage(err) {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  const parts = [];
+  if (err.message) parts.push(err.message);
+  if (err.shortMessage) parts.push(err.shortMessage);
+  if (err.reason) parts.push(err.reason);
+  if (err.info?.error?.message) parts.push(err.info.error.message);
+  if (err.error?.message) parts.push(err.error.message);
+  if (err.response?.data?.error?.message) parts.push(err.response.data.error.message);
+  if (typeof err.data === 'string') parts.push(err.data);
+  if (err.data?.message) parts.push(err.data.message);
+  return parts.join(' ');
+}
+
+/**
+ * Parses block-range restriction errors from providers (e.g. Alchemy 10-block limit, Infura 10000 results).
+ * Returns { isRangeTooLarge: true, suggestedBatchSize: number | null } or null.
+ */
+export function parseRangeTooLargeError(err) {
+  if (!err) return null;
+  const rawMsg = getFullErrorMessage(err);
+  const msg = rawMsg.toLowerCase();
+
+  const isRangeTooLarge =
+    msg.includes('limited to a') ||
+    msg.includes('range is too large') ||
+    msg.includes('range is too wide') ||
+    msg.includes('smaller block range') ||
+    msg.includes('smaller range') ||
+    msg.includes('more than 10000 results') ||
+    msg.includes('try with this block range') ||
+    msg.includes('response size') ||
+    (msg.includes('exceed') && (msg.includes('range') || msg.includes('block'))) ||
+    (msg.includes('range') && (msg.includes('limit') || msg.includes('maximum') || msg.includes('allowed') || msg.includes('within') || msg.includes('greater than')));
+
+  if (!isRangeTooLarge) return null;
+
+  // 1. Try to parse suggested hex range: [0x1a, 0x20]
+  const hexRangeMatch = rawMsg.match(/\[(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\]/);
+  if (hexRangeMatch) {
+    try {
+      const start = BigInt(hexRangeMatch[1]);
+      const end = BigInt(hexRangeMatch[2]);
+      if (end >= start) {
+        const diff = Number(end - start + 1n);
+        if (diff > 0) return { isRangeTooLarge: true, suggestedBatchSize: diff };
+      }
+    } catch (_) {}
+  }
+
+  // 2. Try to parse suggested decimal range: [100, 109]
+  const decRangeMatch = rawMsg.match(/\[([0-9]+),\s*([0-9]+)\]/);
+  if (decRangeMatch) {
+    try {
+      const start = parseInt(decRangeMatch[1], 10);
+      const end = parseInt(decRangeMatch[2], 10);
+      if (end >= start) {
+        const diff = end - start + 1;
+        if (diff > 0) return { isRangeTooLarge: true, suggestedBatchSize: diff };
+      }
+    } catch (_) {}
+  }
+
+  // 3. Try to parse explicit block limit numbers (e.g. "limited to a 10 block range")
+  const limitMatch =
+    rawMsg.match(/limited to a[n]?\s+([0-9]+)\s*block/i) ||
+    rawMsg.match(/max(?:imum)?\s*(?:allowed)?(?:\s*block)?(?:\s*range)?(?:\s*is)?(?::\s*|\s+)([0-9]+)/i) ||
+    rawMsg.match(/within\s+([0-9]+)\s*blocks/i) ||
+    rawMsg.match(/exceed(?:s|ed|ing)?\s*(?:max)?(?:\s*block)?\s*range\s*([0-9]+)/i) ||
+    rawMsg.match(/greater\s+than\s+([0-9]+)/i);
+
+  if (limitMatch && limitMatch[1]) {
+    const parsedLimit = parseInt(limitMatch[1], 10);
+    if (!isNaN(parsedLimit) && parsedLimit > 0) {
+      return { isRangeTooLarge: true, suggestedBatchSize: parsedLimit };
+    }
+  }
+
+  return { isRangeTooLarge: true, suggestedBatchSize: null };
+}
+
 export class EventIndexer {
   constructor(provider, contractAddress) {
     this.provider = provider;
     this.contractAddress = contractAddress;
     this.contract = new ethers.Contract(contractAddress, CONTRACT_ABI, provider);
     this.isSyncing = false;
+    this.lastError = null;
+    this.lastSyncSuccess = false;
 
     // Cache latest block to avoid thrashing RPC provider (15s TTL)
     this.cachedBlock = null;
     this.cachedBlockTimestamp = 0;
-    this.batchSize = parseInt(process.env.INDEXER_BATCH_SIZE || '500', 10);
+    const envBatchSize = parseInt(process.env.INDEXER_BATCH_SIZE || '10', 10);
+    this.batchSize = !isNaN(envBatchSize) && envBatchSize > 0 ? envBatchSize : 10;
+  }
+
+  getLastError() {
+    return this.lastError;
   }
 
   async getLatestBlockNumber(forceFresh = false) {
@@ -69,14 +161,44 @@ export class EventIndexer {
   }
 
   /**
-   * Helper to execute queryFilter with exponential backoff for free-tier RPC rate limits
+   * Helper to fetch logs for a block range with dynamic range halving / suggested range fallback
+   * when the RPC provider rejects the range as too large (e.g. Alchemy free-tier 10-block limit).
+   * Retries immediately on range reductions instead of failing after 5 attempts.
    */
-  async queryFilterWithBackoff(fromBlock, toBlock, maxRetries = 5) {
+  async fetchLogsWithFallback(fromBlock, maxTargetBlock) {
+    let currentBatch = this.batchSize;
     let attempt = 0;
-    while (attempt < maxRetries) {
+    const maxTransientRetries = 5;
+
+    while (true) {
+      const toBlock = Math.min(fromBlock + currentBatch - 1, maxTargetBlock);
       try {
-        return await this.contract.queryFilter("*", fromBlock, toBlock);
+        const logs = await this.contract.queryFilter("*", fromBlock, toBlock);
+        return { logs, endBlock: toBlock };
       } catch (err) {
+        const rangeError = parseRangeTooLargeError(err);
+
+        if (rangeError && rangeError.isRangeTooLarge) {
+          let newBatch;
+          if (rangeError.suggestedBatchSize && rangeError.suggestedBatchSize < currentBatch) {
+            newBatch = Math.max(1, rangeError.suggestedBatchSize);
+          } else {
+            newBatch = Math.max(1, Math.floor(currentBatch / 2));
+          }
+
+          if (newBatch < currentBatch) {
+            console.warn(
+              `[INDEXER] Range [${fromBlock}-${toBlock}] too large (${err.message}). ` +
+              `Adjusting batch size from ${currentBatch} to ${newBatch} and retrying...`
+            );
+            this.batchSize = newBatch;
+            currentBatch = newBatch;
+            attempt = 0; // Reset transient retry counter
+            continue; // Retry immediately with reduced range
+          }
+        }
+
+        // Transient errors (rate limits 429, timeouts, connection drop)
         attempt++;
         const isRateLimit = err.message && (
           err.message.includes('429') ||
@@ -85,23 +207,25 @@ export class EventIndexer {
           err.message.toLowerCase().includes('limit')
         );
 
-        if (attempt >= maxRetries) {
+        if (attempt >= maxTransientRetries) {
           throw err;
         }
 
-        const delayMs = (isRateLimit ? 1000 : 500) * Math.pow(2, attempt - 1);
-        console.warn(`[INDEXER RPC] Rate limit/error fetching logs [${fromBlock}-${toBlock}], retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})...`);
+        const delayMs = process.env.NODE_ENV === 'test' ? 5 : ((isRateLimit ? 1000 : 500) * Math.pow(2, attempt - 1));
+        console.warn(
+          `[INDEXER RPC] Error fetching logs [${fromBlock}-${toBlock}]: ${err.message}. ` +
+          `Retrying in ${delayMs}ms (attempt ${attempt}/${maxTransientRetries})...`
+        );
         await new Promise(res => setTimeout(res, delayMs));
       }
     }
-    return [];
   }
 
   /**
    * Synchronize all blockchain events from last indexed block / DEPLOY_BLOCK to current block
    */
   async syncFromChain({ isStartup = false } = {}) {
-    if (this.isSyncing) return;
+    if (this.isSyncing) return { success: !this.lastError, inProgress: true };
     this.isSyncing = true;
 
     try {
@@ -118,7 +242,9 @@ export class EventIndexer {
 
       if (fromBlock > currentBlock) {
         this.isSyncing = false;
-        return;
+        this.lastError = null;
+        this.lastSyncSuccess = true;
+        return { success: true, processedEvents: 0 };
       }
 
       if (isStartup) {
@@ -130,23 +256,30 @@ export class EventIndexer {
       let totalLogsProcessed = 0;
 
       while (chunkStart <= currentBlock) {
-        const chunkEnd = Math.min(chunkStart + this.batchSize - 1, currentBlock);
-        const logs = await this.queryFilterWithBackoff(chunkStart, chunkEnd);
+        const { logs, endBlock } = await this.fetchLogsWithFallback(chunkStart, currentBlock);
 
         for (const log of logs) {
           await this.handleLog(log);
           totalLogsProcessed++;
         }
 
-        this.setLastIndexedBlock(chunkEnd);
-        chunkStart = chunkEnd + 1;
+        this.setLastIndexedBlock(endBlock);
+        chunkStart = endBlock + 1;
       }
+
+      this.lastError = null;
+      this.lastSyncSuccess = true;
 
       if (isStartup || totalLogsProcessed > 0) {
         console.log(`[INDEXER] Synced up to Block #${currentBlock}. Processed ${totalLogsProcessed} events.`);
       }
+
+      return { success: true, processedEvents: totalLogsProcessed };
     } catch (err) {
-      console.warn('[INDEXER] Event sync notice:', err.message);
+      this.lastError = err.message || 'Indexer sync failure';
+      this.lastSyncSuccess = false;
+      console.error(`[INDEXER ERROR] Event sync failure: ${this.lastError}`);
+      return { success: false, error: this.lastError };
     } finally {
       this.isSyncing = false;
     }
