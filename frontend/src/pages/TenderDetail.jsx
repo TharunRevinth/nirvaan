@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { ethers } from 'ethers';
 import ChainOfCustodyTimeline from '../components/ChainOfCustodyTimeline';
 import { useAuth } from '../context/AuthContext';
 import { isTenderDeadlineOver } from '../utils/tenderUtils';
@@ -194,7 +195,17 @@ export default function TenderDetail({ tenders }) {
 
             <div>
               <span className="text-[#71716D] block">Earnest Money Deposit (EMD):</span>
-              <span className="font-mono text-xs font-semibold text-[#1A1A18] tabular-nums">{tender.emd || '500,000 INR (0.1 ETH)'}</span>
+              <span className="font-mono text-xs font-semibold text-[#1A1A18] tabular-nums">
+                {tender.minEmdEth
+                  ? `${tender.minEmdEth} ETH`
+                  : (tender.emd?.includes('ETH')
+                      ? tender.emd
+                      : (tender.minEmdAmount
+                          ? (String(tender.minEmdAmount).length > 10
+                              ? `${ethers.formatEther(tender.minEmdAmount)} ETH`
+                              : `${tender.minEmdAmount} ETH`)
+                          : '0.001 ETH'))}
+              </span>
             </div>
 
             <div>

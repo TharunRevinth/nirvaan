@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS, RPC_URL } from '../config';
-import { ensureCorrectChain } from '../utils/chain';
+import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 const CONTRACT_ABI = [
   "function getTenderBidsCount(uint256 _tenderId) external view returns (uint256)",
@@ -137,7 +137,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
       await loadOnChainBids();
     } catch (err) {
       console.error('Technical qualification error:', err);
-      triggerToast(`Technical score error: ${err.reason || err.message}`, 'error');
+      triggerToast(`Technical score error: ${decodeContractError(err)}`, 'error');
     } finally {
       setScoringIndex(null);
     }
@@ -184,7 +184,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
       setIsSubmitting(false);
       setModalOpen(false);
       console.error('Award execution error:', err);
-      triggerToast(`Award failed: ${err.reason || err.message}`, 'error');
+      triggerToast(`Award failed: ${decodeContractError(err)}`, 'error');
     }
   };
 

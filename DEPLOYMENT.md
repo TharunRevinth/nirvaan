@@ -114,6 +114,7 @@ Render's free tier provides a free web service without persistent disks or backg
    | `PINATA_GATEWAY` | `https://gateway.pinata.cloud/ipfs` | Pinata Gateway URL |
    | `ALLOWED_ORIGINS` | `https://your-frontend.vercel.app` | Your Vercel frontend URL |
    | `DB_PATH` | `/tmp/nirvaan.db` | Ephemeral in-memory/temp SQLite path |
+   | `MAX_EMD_ETH` | `1` | Maximum allowable on-chain EMD or bid amount in ETH (default 1; rejects out-of-range amounts) |
    | `KEEPER_POLL_INTERVAL_S`| `20` | Keeper poll interval (15-30s) |
    | `OFFICER_SEED_JSON` | `[{"username":"iocl_officer","password":"YourPassword123!","psu":"IOCL","officerId":"IOCL-8821","email":"iocl_officer@procurement.gov.in"}]` | Seed credentials |
 

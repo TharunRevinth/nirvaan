@@ -157,15 +157,30 @@ app.get('/api/health', async (req, res) => {
 /**
  * UNIT CONVENTION (DOCUMENTED):
  * All on-chain monetary amounts (EMD, bids, bonds) are expressed and stored in Wei (1 ETH = 10^18 wei).
- * Inputs can be provided as ETH decimal strings (e.g., "0.5") or integer Wei strings.
- * Magic re-mapping (>50 -> 0.1) has been completely removed to preserve value integrity between chain and DB.
+ * Inputs must be provided strictly as ETH decimal strings (e.g., "0.001").
+ * The "integer > 1e12 means wei" heuristic and silent default fallbacks have been removed.
+ * Enforces configurable MAX_EMD_ETH (default 1) and minimum 0.0001 ETH.
  */
-function parseEtherAmount(val, defaultVal = "0.1") {
-  if (!val) return ethers.parseEther(defaultVal);
-  const str = String(val).replace(/ETH/i, '').trim();
-  if (/^\d+$/.test(str) && BigInt(str) > 1000000000000n) {
-    return BigInt(str);
+export function parseEtherAmount(val, fieldName = "EMD") {
+  const min = 0.0001;
+  const max = parseFloat(process.env.MAX_EMD_ETH || '1');
+
+  if (val === undefined || val === null || String(val).trim() === '') {
+    throw new Error(`${fieldName} amount is required and must be provided as an ETH decimal string (e.g. '0.001').`);
   }
+
+  const str = String(val).replace(/ETH/i, '').trim();
+
+  // Accept valid positive decimal strings only (e.g. "0.001", "0.5", "1")
+  if (!/^\d+(\.\d+)?$/.test(str)) {
+    throw new Error(`Invalid ${fieldName} amount: '${val}'. Must be a valid ETH decimal string (e.g. '0.001').`);
+  }
+
+  const ethNum = parseFloat(str);
+  if (isNaN(ethNum) || ethNum < min || ethNum > max) {
+    throw new Error(`${fieldName} must be between ${min} and ${max} ETH on this network`);
+  }
+
   return ethers.parseEther(str);
 }
 
@@ -388,6 +403,7 @@ app.get('/api/tenders', async (req, res) => {
         desc: t.description,
         valueCr: t.budget,
         minEmdAmount: t.min_emd_wei,
+        minEmdEth: t.min_emd_eth,
         emd: `${t.min_emd_eth} ETH`,
         deadline: t.submission_deadline,
         opening: t.opening_time,
@@ -444,6 +460,7 @@ app.get('/api/tenders/:id', async (req, res) => {
         desc: t.description,
         valueCr: t.budget,
         minEmdAmount: t.min_emd_wei,
+        minEmdEth: t.min_emd_eth,
         emd: `${t.min_emd_eth} ETH`,
         deadline: t.submission_deadline,
         opening: t.opening_time,
@@ -501,7 +518,7 @@ app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
     const submissionDeadline = req.body.submissionDeadline || req.body.deadline;
     const openingTime = req.body.openingTime || req.body.opening;
     const revealDeadline = req.body.revealDeadline;
-    const minEMD = req.body.minEMD || req.body.emd || "0.1";
+    const minEMD = req.body.minEMD || req.body.emd || req.body.minEmdAmount;
 
     if (!submissionDeadline || !openingTime) {
       return res.status(400).json({ error: 'Submission deadline and opening time are required.' });
@@ -537,7 +554,12 @@ app.post('/api/tenders/create', authenticateOfficerToken, async (req, res) => {
       return res.status(400).json({ error: 'Reveal deadline must be strictly after the opening time.' });
     }
 
-    const emdWei = parseEtherAmount(minEMD, "0.1");
+    let emdWei;
+    try {
+      emdWei = parseEtherAmount(minEMD, "EMD");
+    } catch (emdErr) {
+      return res.status(400).json({ error: emdErr.message });
+    }
 
     let tenderIdNum = 1;
     let txHash = '0xsimulated_create_tender_tx';
@@ -666,7 +688,12 @@ app.post('/api/tenders/:id/bids', (req, res) => {
       return res.status(400).json({ error: 'Valid vendor Ethereum address required.' });
     }
 
-    const emdWei = parseEtherAmount(amount, "0.1");
+    let emdWei;
+    try {
+      emdWei = parseEtherAmount(amount, "Bid");
+    } catch (parseErr) {
+      return res.status(400).json({ error: parseErr.message });
+    }
     const bidId = `BID-${numericId}-${vendorAddress.slice(2, 6)}`;
 
     db.prepare(`
@@ -769,7 +796,8 @@ app.post('/api/tenders/:id/award', authenticateOfficerToken, async (req, res) =>
       return res.status(400).json({ error: `Invalid tender ID '${req.params.id}': Tender IDs must be strictly numeric integers.` });
     }
 
-    const { winner, winningBidId, winningBidAmount, winnerName } = req.body;
+    const { winner, winningBidId, winnerName } = req.body;
+    const winningBidAmount = req.body.winningBidAmount || req.body.winningAmount;
     if (!winner || !ethers.isAddress(winner)) {
       return res.status(400).json({ error: 'Valid winning bidder Ethereum address is required.' });
     }
@@ -786,7 +814,12 @@ app.post('/api/tenders/:id/award', authenticateOfficerToken, async (req, res) =>
       });
     }
 
-    const winningAmountWei = parseEtherAmount(winningBidAmount, "1.0");
+    let winningAmountWei;
+    try {
+      winningAmountWei = parseEtherAmount(winningBidAmount, "Winning bid");
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
 
     let txHash = '0xsimulated_award_tx';
     let blockNumber = 1;
@@ -1576,6 +1609,8 @@ async function startServer() {
   }
 }
 
-startServer();
+if (process.argv[1] && (process.argv[1] === __filename || process.argv[1].endsWith('server.js') || process.argv[1].endsWith('server'))) {
+  startServer();
+}
 
 export default app;

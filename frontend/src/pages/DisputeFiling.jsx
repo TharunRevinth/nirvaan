@@ -4,7 +4,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS } from '../config';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
-import { ensureCorrectChain } from '../utils/chain';
+import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 export default function DisputeFiling({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
@@ -78,18 +78,26 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
       const ipfsResult = await uploadDocumentToIpfs(fileToUpload);
       const realCid = ipfsResult.hash;
 
-      // 2. Execute on-chain disputeTender with the real IPFS CID and 1.0 ETH bond
+      // 2. Execute on-chain disputeTender with the real IPFS CID and dispute bond
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const abi = [
-        "function disputeTender(uint256 _tenderId, string memory _reasonIpfsHash) external payable"
+        "function disputeTender(uint256 _tenderId, string memory _reasonIpfsHash) external payable",
+        "function disputeBondAmount() external view returns (uint256)"
       ];
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
+
+      let bondWei = ethers.parseEther("0.01");
+      try {
+        bondWei = await contract.disputeBondAmount();
+      } catch (bondErr) {
+        console.warn('Could not read disputeBondAmount, falling back to 0.01 ETH:', bondErr);
+      }
 
       const tx = await contract.disputeTender(
         Number(currentTender.onChainId),
         realCid,
-        { value: ethers.parseEther("1.0") }
+        { value: bondWei }
       );
 
       triggerToast(`Dispute transaction submitted: ${tx.hash.substring(0, 18)}…`, 'info');
@@ -97,12 +105,12 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
 
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Dispute filed on-chain for Tender #${currentTender.onChainId}. 1.0 ETH bond locked in escrow (Block #${receipt.blockNumber}). Evidence CID: ${realCid}`, 'success');
+      triggerToast(`Dispute filed on-chain for Tender #${currentTender.onChainId}. ${ethers.formatEther(bondWei)} ETH bond locked in escrow (Block #${receipt.blockNumber}). Evidence CID: ${realCid}`, 'success');
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);
       console.error("Dispute filing error:", err);
-      triggerToast(`Dispute filing error: ${err.reason || err.message}`, 'error');
+      triggerToast(`Dispute filing error: ${decodeContractError(err)}`, 'error');
     }
   };
 

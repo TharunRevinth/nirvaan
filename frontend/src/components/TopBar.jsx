@@ -38,9 +38,9 @@ export default function TopBar() {
               </span>
             </div>
             <p className="text-[11px] text-[#71716D] font-mono tabular-nums flex items-center gap-2">
-              <span>Besu Consortium Chain</span>
+              <span>Ethereum Sepolia</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              <span className="text-emerald-700 font-medium">0.00 Gwei</span>
+              <span className="text-emerald-700 font-medium">Chain #11155111</span>
             </p>
           </div>
         </div>

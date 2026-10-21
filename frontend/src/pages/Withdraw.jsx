@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS } from '../config';
-import { ensureCorrectChain } from '../utils/chain';
+import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 export default function Withdraw({ triggerToast }) {
   const { walletAddress } = useAuth();
@@ -65,7 +65,7 @@ export default function Withdraw({ triggerToast }) {
       setBalanceEth('0.0');
     } catch (err) {
       console.error('Withdrawal error:', err);
-      triggerToast(`Withdrawal failed: ${err.reason || err.message}`, 'error');
+      triggerToast(`Withdrawal failed: ${decodeContractError(err)}`, 'error');
     } finally {
       setIsSubmitting(false);
     }

@@ -6,7 +6,27 @@ import { CONTRACT_ADDRESS, API_URL } from '../config';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
 import { encryptFileClientSide } from '../utils/crypto';
 import { isTenderDeadlineOver } from '../utils/tenderUtils';
-import { ensureCorrectChain } from '../utils/chain';
+import { ensureCorrectChain, decodeContractError } from '../utils/chain';
+
+function getTenderEmdEth(tender) {
+  if (!tender) return '0.001';
+  if (tender.minEmdEth) return String(tender.minEmdEth);
+  if (tender.emd && tender.emd.includes('ETH')) {
+    return tender.emd.replace('ETH', '').trim();
+  }
+  if (tender.minEmdAmount) {
+    const str = String(tender.minEmdAmount);
+    if (str.length > 10) {
+      try {
+        return ethers.formatEther(str);
+      } catch (e) {
+        return str;
+      }
+    }
+    return str;
+  }
+  return '0.001';
+}
 
 export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
@@ -14,15 +34,22 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
   const [amount, setAmount] = useState('');
   const [salt, setSalt] = useState('');
   const [saltDownloaded, setSaltDownloaded] = useState(false);
-  const [emdDeposited, setEmdDeposited] = useState('0.1');
+  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
+  const [emdDeposited, setEmdDeposited] = useState(() => getTenderEmdEth(currentTender));
   const [commitmentHash, setCommitmentHash] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [onChainTxHash, setOnChainTxHash] = useState('');
   const [onChainBidRecord, setOnChainBidRecord] = useState(null);
 
-  const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
   const isCurrentTenderClosed = currentTender ? (currentTender.isExpired || isTenderDeadlineOver(currentTender)) : false;
+
+  // Prefill EMD dynamically from tender's minEmdAmount
+  useEffect(() => {
+    if (currentTender) {
+      setEmdDeposited(getTenderEmdEth(currentTender));
+    }
+  }, [currentTender]);
 
   // Keccak256 commitment calculation with 32-byte salt (no truncation)
   useEffect(() => {
@@ -214,7 +241,7 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
       setIsSubmitting(false);
       setModalOpen(false);
       console.error("Bid Submission Error:", err);
-      triggerToast(err.reason || err.message || "MetaMask transaction failed.", 'error');
+      triggerToast(decodeContractError(err), 'error');
     }
   };
 
@@ -229,7 +256,7 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
             Submit Sealed Encrypted Bid
           </h1>
           <p className="text-xs text-[#575753] mt-1">
-            Zero-knowledge commitment scheme with on-chain cryptographic verification.
+            Commit-reveal scheme with on-chain cryptographic verification.
           </p>
         </div>
 
@@ -322,7 +349,12 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
             )}
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#1A1A18]">EMD Escrow Deposit (ETH) *</label>
+              <label className="text-xs font-medium text-[#1A1A18] block">
+                EMD Escrow Deposit (ETH) *
+              </label>
+              <div className="text-[11px] text-[#71716D] font-mono">
+                Required On-Chain EMD: <span className="font-semibold text-[#1A1A18]">{getTenderEmdEth(currentTender)} ETH</span>
+              </div>
               <input
                 type="text"
                 required
@@ -330,6 +362,9 @@ export default function SealedBidSubmission({ triggerToast, tenders = [] }) {
                 onChange={(e) => setEmdDeposited(e.target.value)}
                 className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
               />
+              <p className="text-[11px] text-[#71716D]">
+                Prefilled with tender minimum EMD. Must meet or exceed minimum EMD on-chain.
+              </p>
             </div>
 
             <div className="space-y-1.5">

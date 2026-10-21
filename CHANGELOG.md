@@ -254,7 +254,33 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Tender Creation Form & Monetary Amount Validation (`backend/`, `frontend/`)
+
+1. **EMD & Monetary Bounds Enforcement (`backend/server.js`)**:
+   - Refactored `parseEtherAmount(val, fieldName)`: completely removed the "integer > 1e12 means wei" heuristic and silent defaults.
+   - Strictly enforces ETH decimal string inputs (e.g. `"0.001"`).
+   - Rejects missing, empty, or non-numeric inputs with clear 400 Bad Request responses.
+   - Enforces configurable `MAX_EMD_ETH` (default 1) and minimum 0.0001 ETH, returning descriptive error messages: `"EMD must be between 0.0001 and 1 ETH on this network"` and `"Bid must be between 0.0001 and 1 ETH on this network"`.
+   - Applied strict validation across tender creation (`POST /api/tenders/create`), bid submission (`POST /api/tenders/:id/bids`), and award (`POST /api/tenders/:id/award`).
+   - Guarded backend server startup so importing `server.js` in unit tests does not spawn active listening ports or background indexers.
+   - Added `backend/test/parseEtherAmount.test.js` covering `"500000"`, `"0.001"`, `""`, `"abc"`, and custom `MAX_EMD_ETH`.
+
+2. **Frontend Tender Creation & Detail Refinement (`frontend/`)**:
+   - `TenderCreation.jsx`: Relabelled EMD field as `"Earnest Money Deposit (ETH) * (testnet value)"`, defaulted to `0.001` ETH. Separated budget as display-only INR (`"Estimated Budget (INR ₹) [Display Only]"`). Removed silent `"0.1"` fallback on submission.
+   - `TenderDetail.jsx`: Formatted on-chain EMD in ETH (e.g. `0.001 ETH (on-chain escrow)`), eliminating hardcoded `500,000 INR (0.1 ETH)` text.
+   - `SealedBidSubmission.jsx`: Dynamically prefills `emdDeposited` from the tender's actual `minEmdEth` / `minEmdAmount`. Displays required on-chain EMD in ETH on the form.
+   - Replaced all "Zero-knowledge commitment" wording with "commit-reveal".
+   - `TopBar.jsx`: Updated consortium header from `"Besu Consortium Chain / 0.00 Gwei"` to `"Ethereum Sepolia / Chain #11155111"`.
+
+3. **Contract Revert Reason Decoding (`frontend/src/utils/chain.js`)**:
+   - Implemented `decodeContractError(err)`: extracts revert strings, RPC payloads, and custom errors from ethers.js v6 error objects.
+   - Translates raw contract reverts into friendly human messages like `"EMD below minimum"`, `"Bidding closed"`, `"Reveal deadline expired"`, and `"Commitment mismatch (tampering detected or invalid secret salt)"`.
+   - Integrated into `SealedBidSubmission.jsx`, `VendorReveal.jsx`, `DisputeFiling.jsx`, `EvaluationAward.jsx`, and `Withdraw.jsx`.
+
+---
+
 ## Items Blocked or Incomplete
 
-*None*. Every item specified in the requirements across Phase 1 through Phase 5 and the Vendor KYC Apply-Then-Approve flow has been completed, tested, and verified.
+*None*. Every item specified in the requirements across Phase 1 through Phase 5, the Vendor KYC Apply-Then-Approve flow, and the Tender Creation EMD/Revert Decoders has been completed, tested, and verified.
+
 

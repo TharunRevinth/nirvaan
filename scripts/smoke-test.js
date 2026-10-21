@@ -275,7 +275,7 @@ async function runSmokeTests() {
         category: 'Pipeline Infrastructure',
         description: 'Class 600 pressure rated API-6D pipeline gate valves for refinery expansion.',
         valueCr: '45.00',
-        minEmdAmount: '10000000000000000', // 0.01 ETH in wei
+        minEmdAmount: '0.01', // 0.01 ETH
         submissionDeadline: new Date((now + 600) * 1000).toISOString(),
         openingTime: new Date((now + 900) * 1000).toISOString(),
         revealDeadline: new Date((now + 1200) * 1000).toISOString(),
@@ -290,7 +290,8 @@ async function runSmokeTests() {
     // -------------------------------------------------------------
     // Test 7: Sealed Bid Submission
     // -------------------------------------------------------------
-    const bidAmountWei = ethers.parseEther('1.25').toString();
+    const bidAmountEth = '0.05';
+    const bidAmountWei = ethers.parseEther(bidAmountEth).toString();
     const bidSalt = '0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff';
     const bidCommitment = ethers.keccak256(
       ethers.AbiCoder.defaultAbiCoder().encode(
@@ -307,7 +308,7 @@ async function runSmokeTests() {
         vendorAddress: testVendorAddress,
         vendorName: 'Bharat Pipelines Ltd.',
         vid: 'VEN-BHARAT-01',
-        amount: '1.25 ETH',
+        amount: bidAmountEth,
         amountWei: bidAmountWei,
         hash: bidCommitment,
         cid: 'QmEncryptedSealedCommercialBidDocumentDossier',
@@ -360,7 +361,7 @@ async function runSmokeTests() {
       body: JSON.stringify({
         winner: testVendorAddress,
         winnerName: 'Bharat Pipelines & Infrastructure Ltd.',
-        winningAmount: '1.25 ETH',
+        winningBidAmount: bidAmountEth,
         winnerVid: 'VEN-BHARAT-01',
         complianceScore: '95%',
         deliveryTimeline: '12 Months'

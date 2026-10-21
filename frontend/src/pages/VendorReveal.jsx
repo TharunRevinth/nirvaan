@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ethers } from 'ethers';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS } from '../config';
-import { ensureCorrectChain } from '../utils/chain';
+import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 export default function VendorReveal({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
@@ -82,7 +82,7 @@ export default function VendorReveal({ triggerToast, tenders = [] }) {
       triggerToast(`Bid revealed on-chain in Block #${receipt.blockNumber}.`, 'success');
     } catch (err) {
       console.error('Bid reveal error:', err);
-      triggerToast(`Reveal failed: ${err.reason || err.message}`, 'error');
+      triggerToast(`Reveal failed: ${decodeContractError(err)}`, 'error');
     } finally {
       setIsSubmitting(false);
     }

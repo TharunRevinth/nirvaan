@@ -54,7 +54,7 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
   const [desc, setDesc] = useState('');
   const [deadline, setDeadline] = useState(() => getDefaultDeadline(14));
   const [opening, setOpening] = useState(() => getDefaultOpening(getDefaultDeadline(14)));
-  const [emd, setEmd] = useState('500000');
+  const [emd, setEmd] = useState('0.001');
   const [budget, setBudget] = useState('45000000');
   const [ipfsCid, setIpfsCid] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -150,8 +150,8 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
           submissionDeadline: deadline,
           opening,
           openingTime: opening,
-          emd: emd || "0.1",
-          minEMD: emd || "0.1",
+          emd: emd,
+          minEMD: emd,
           budget: budget || "45000000",
           ipfsCid: ipfsCid,
           ipfsHash: ipfsCid
@@ -173,8 +173,9 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
         title,
         desc,
         valueCr: (Number(budget) / 10000000).toFixed(2),
-        minEmdAmount: Number(emd),
-        emd: `${Number(emd).toLocaleString('en-IN')} INR`,
+        minEmdAmount: emd,
+        minEmdEth: emd,
+        emd: `${emd} ETH`,
         deadline: deadline.replace('T', ' '),
         isExpired: false,
         appealWindowClosed: false,
@@ -341,20 +342,25 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
             </h2>
             <div className="space-y-1.5">
               <label htmlFor="emd-amount-input" className="text-xs font-medium text-[#575753] block">
-                Earnest Money Deposit (EMD ₹) *
+                Earnest Money Deposit (ETH) * <span className="text-[#878682] font-normal text-[11px]">(testnet value)</span>
               </label>
               <input
                 id="emd-amount-input"
                 name="emd"
-                type="number"
+                type="text"
+                step="any"
                 value={emd}
+                placeholder="0.001"
                 onChange={(e) => setEmd(e.target.value)}
                 className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono text-[#1A1A18] text-right tabular-nums focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
               />
+              <p className="text-[11px] text-[#71716D]">
+                On-chain security deposit escrowed via smart contract (e.g. 0.001 ETH).
+              </p>
             </div>
             <div className="space-y-1.5">
               <label htmlFor="budget-amount-input" className="text-xs font-medium text-[#575753] block">
-                Estimated Budget Value (INR ₹) *
+                Estimated Budget (INR ₹) <span className="text-[#878682] font-normal text-[11px]">[Display Only]</span>
               </label>
               <input
                 id="budget-amount-input"
@@ -364,6 +370,9 @@ export default function TenderCreation({ selectedPSU: propPsu, triggerToast, set
                 onChange={(e) => setBudget(e.target.value)}
                 className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-xs font-mono font-semibold text-[#1A1A18] text-right tabular-nums focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
               />
+              <p className="text-[11px] text-[#71716D]">
+                Procurement commercial budget in INR for off-chain accounting only.
+              </p>
             </div>
           </div>
         </div>
