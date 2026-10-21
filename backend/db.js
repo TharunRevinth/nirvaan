@@ -83,6 +83,20 @@ db.exec(`
     FOREIGN KEY(tender_id) REFERENCES tenders(on_chain_id)
   );
 
+  CREATE TABLE IF NOT EXISTS vendor_applications (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT UNIQUE NOT NULL,
+    company_name TEXT NOT NULL,
+    gstin TEXT NOT NULL,
+    pan TEXT NOT NULL,
+    kyc_cid TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    tx_hash TEXT,
+    rejection_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS indexer_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

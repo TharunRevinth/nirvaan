@@ -121,6 +121,11 @@ Render's free tier provides a free web service without persistent disks or backg
 > **RPC Provider Compatibility (Alchemy / Infura / Public RPCs)**:
 > Alchemy's free tier limits `eth_getLogs` to 10 blocks. The NIRVAAN indexer defaults `INDEXER_BATCH_SIZE=10`. If an RPC provider returns a "range too large" error, the indexer automatically parses the suggested range or halves the batch size dynamically and immediately retries. If an indexer failure occurs, it will not report false synchronization, keeps retrying in the background every 20 seconds, and reports `indexerLag` and `indexerError` via `/api/health`.
 
+> [!IMPORTANT]
+> **Vendor KYC Apply-Then-Approve & Ephemeral Database Lifecycle**:
+> 1. **Apply-then-Approve Workflow**: Vendors submit their corporate credentials and IPFS incorporation document via `POST /api/vendors/apply` without requiring an officer JWT. Nodal officers review submissions under `/officer/vendors` and trigger on-chain smart contract registration via `POST /api/vendors/applications/:id/approve`. Public status is queried via `GET /api/vendors/status/:address`.
+> 2. **Ephemeral Rebuild & Limitations**: Because Render's free tier uses an ephemeral SQLite database (`/tmp/nirvaan.db`), all `APPROVED` vendors are automatically reconstructed on boot from on-chain `VendorRegistered` events indexed from `DEPLOY_BLOCK`. Any unapproved `PENDING` applications may be cleared on instance reboot; vendors whose applications were pending can simply re-submit credentials if restarted prior to officer approval.
+
 6. Click **Deploy Web Service**.
 7. Once deployed, note your Render URL (e.g. `https://nirvaan-backend.onrender.com`).
 
@@ -179,11 +184,14 @@ node scripts/smoke-test.js
 ```
 
 The smoke test automatically verifies:
-- Unauthenticated access to `/api/vendors/register` and `/api/ipfs/upload` is rejected.
-- `/api/health` is online and reporting indexer sync status.
-- PSU officer login and single-use password change flow.
-- Authenticated vendor KYC registration.
-- Tender specification creation.
+- Unauthenticated access to `/api/vendors/register`, `/api/vendors/applications`, and `/api/ipfs/upload` is rejected with 401 Unauthorized.
+- `/api/health` is online and reporting indexer sync status and keeper health.
+- PSU officer login and single-use temporary password change flow.
+- Public vendor application submission (`POST /api/vendors/apply`) with status `PENDING`.
+- Officer applications register review (`GET /api/vendors/applications`).
+- Officer on-chain registration approval (`POST /api/vendors/applications/:id/approve`) transitioning status to `APPROVED`.
+- Public KYC status lookup (`GET /api/vendors/status/:address`).
+- Tender specification creation (NIT).
 - Sealed bid submission with Keccak-256 cryptographic salt commitment.
 - Bid opening and salt reveal.
 - Technical scoring and lowest-qualified (L1) award determination.

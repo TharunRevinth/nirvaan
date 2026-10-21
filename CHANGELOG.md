@@ -213,7 +213,7 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ### Phase 5 — Documentation, Checks & Verification
 - **Beginner Deployment Guide (`DEPLOYMENT.md`)**: Created comprehensive numbered deployment guide covering Sepolia contract deployment, Render backend setup, Vercel frontend build, UptimeRobot 5-minute health monitoring (preventing free-tier spin-down and documenting 60s cold starts), and environment variable configurations.
-- **End-to-End Smoke Test (`scripts/smoke-test.js`)**: Created automated 23-assertion test verifying:
+- **End-to-End Smoke Test (`scripts/smoke-test.js`)**: Created automated test suite verifying:
   - Rejection of unauthenticated `/api/vendors/register` (401).
   - Rejection of unauthenticated `/api/ipfs/upload` (401).
   - `/api/health` status, indexer lag, and keeper health reporting.
@@ -228,7 +228,33 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Vendor KYC Apply-Then-Approve Workflow (`backend/`, `frontend/`)
+
+1. **Decoupled Apply-Then-Approve Backend Architecture**:
+   - `POST /api/vendors/apply`: Public, rate-limited (`applyLimiter`) endpoint accepting wallet address, company name, GSTIN, PAN, and optional IPFS incorporation certificate CID. Enforces strict input validation, rejects invalid addresses and duplicate applications, and records status as `PENDING`.
+   - `GET /api/vendors/applications`: Officer-only (`authenticateAdminOrOfficer`) endpoint listing all vendor applications with optional status filtering (`?status=PENDING`).
+   - `POST /api/vendors/applications/:id/approve`: Officer-only endpoint executing on-chain smart contract registration via `contractInstance.registerVendor(...)` and marking status `APPROVED` with the mined transaction hash.
+   - `POST /api/vendors/applications/:id/reject`: Officer-only endpoint recording application rejection with formal reason.
+   - `GET /api/vendors/status/:address`: Public endpoint returning statutory verification status (`NONE`, `PENDING`, `APPROVED`, or `REJECTED`), querying the on-chain `registeredVendors` mapping first to guarantee source-of-truth accuracy.
+   - **Ephemeral Database Rebuild on Boot**: Updated `backend/indexer.js` to index `VendorRegistered` events from `DEPLOY_BLOCK`, automatically restoring all approved vendors into SQLite on boot. Documented the operational limitation that unapproved `PENDING` applications may be cleared on cold instance reboot.
+   - Preserved `POST /api/vendors/register` for direct officer registration while syncing the internal application registry.
+
+2. **Frontend Vendor Onboarding & Officer Approval UI**:
+   - `VendorRegistration.jsx`: Rewritten to query `/api/vendors/status/:address` on load and display appropriate status states:
+     - `APPROVED`: Displays verified corporate credentials, on-chain badge, and direct call-to-action to browse active tenders.
+     - `PENDING`: Displays review card with application ID, submission timestamp, and status refresh button.
+     - `REJECTED`: Displays rejection notice with reason and option to re-apply.
+     - `NONE`: Renders the KYC submission form, posting to `/api/vendors/apply` without requiring an officer JWT.
+   - `OfficerVendorApproval.jsx` (`/officer/vendors`, `/psu/vendors`): Created dedicated portal for PSU Nodal Officers to review corporate submissions, view pinned incorporation certificates via IPFS, and execute on-chain smart contract approval or rejection.
+   - `Sidebar.jsx`: Integrated "Vendor KYC Approvals" navigation item visible strictly to authenticated PSU Officers.
+
+3. **Automated Verification**:
+   - Added `backend/test/vendor.test.js` (6 unit tests) covering schema creation, duplicate constraints, approval/rejection state transitions, boot-time event rebuild, and Indian GSTIN/PAN regex validation.
+   - Expanded end-to-end smoke test suite in `scripts/smoke-test.js` to 34 tests, verifying public apply -> status PENDING -> officer review -> on-chain approval -> status APPROVED.
+
+---
+
 ## Items Blocked or Incomplete
 
-*None*. Every item specified in the requirements across Phase 1 through Phase 5 has been completed, tested, and verified.
+*None*. Every item specified in the requirements across Phase 1 through Phase 5 and the Vendor KYC Apply-Then-Approve flow has been completed, tested, and verified.
 

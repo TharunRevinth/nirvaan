@@ -13,9 +13,12 @@ const CONTRACT_ABI = [
   "event DisputeResolved(uint256 indexed tenderId, bool upheld)",
   "event TenderFinalized(uint256 indexed tenderId)",
   "event TenderCancelled(uint256 indexed tenderId, string reason)",
+  "event VendorRegistered(address indexed vendor, bytes32 gstinHash, uint256 timestamp)",
   "function tenders(uint256) external view returns (uint256 id, address psuAddress, string memory ipfsHashDoc, uint256 submissionDeadline, uint256 openingTime, uint256 revealDeadline, uint256 appealDeadline, uint256 minEMDAmount, uint8 status, address winner, uint256 winningBidId, uint256 winningBidAmount)",
   "function tenderBids(uint256, uint256) external view returns (uint256 id, uint256 tenderId, address vendorAddress, string memory encryptedBidIpfsHash, bytes32 bidCommitment, uint256 submissionTime, uint256 bidAmount, uint8 status, bool isTechQualified, uint256 techScore, uint256 emdDeposited)",
-  "function getTenderBidsCount(uint256) external view returns (uint256)"
+  "function getTenderBidsCount(uint256) external view returns (uint256)",
+  "function registeredVendors(address) external view returns (bool)",
+  "function vendorKYC(address) external view returns (bytes32 gstinHash, bytes32 panHash, string memory kycIpfsHash, uint256 registeredAt, bool isActive)"
 ];
 
 const STATUS_NAMES = [
@@ -380,9 +383,64 @@ export class EventIndexer {
       } else if (eventName === 'TenderCancelled') {
         const tenderId = Number(args.tenderId);
         db.prepare("UPDATE tenders SET status = 'Cancelled' WHERE on_chain_id = ?").run(tenderId);
+      } else if (eventName === 'VendorRegistered') {
+        const vendorAddress = args.vendor;
+        await this.indexVendorRegisteredFromChain(vendorAddress, log.transactionHash, log.blockNumber);
       }
     } catch (parseErr) {
       console.warn('[INDEXER] Log handling error:', parseErr.message);
+    }
+  }
+
+  async indexVendorRegisteredFromChain(vendorAddress, txHash = '', blockNumber = 0) {
+    try {
+      const normalized = ethers.getAddress(vendorAddress);
+      let kycCid = null;
+      let registeredAtIso = new Date().toISOString();
+      try {
+        const kycData = await this.contract.vendorKYC(normalized);
+        if (kycData && kycData.kycIpfsHash) {
+          kycCid = kycData.kycIpfsHash;
+        }
+        if (kycData && kycData.registeredAt) {
+          registeredAtIso = new Date(Number(kycData.registeredAt) * 1000).toISOString();
+        }
+      } catch (e) {}
+
+      const existing = db.prepare('SELECT * FROM vendor_applications WHERE LOWER(wallet_address) = LOWER(?)').get(normalized);
+      if (existing) {
+        db.prepare(`
+          UPDATE vendor_applications SET
+            status = 'APPROVED',
+            tx_hash = COALESCE(?, tx_hash),
+            kyc_cid = COALESCE(kyc_cid, ?),
+            updated_at = ?
+          WHERE id = ?
+        `).run(txHash || null, kycCid, new Date().toISOString(), existing.id);
+      } else {
+        const appId = `APP-CHAIN-${normalized.slice(2, 10).toUpperCase()}`;
+        db.prepare(`
+          INSERT INTO vendor_applications (
+            id, wallet_address, company_name, gstin, pan, kyc_cid, status, tx_hash, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?)
+          ON CONFLICT(wallet_address) DO UPDATE SET
+            status = 'APPROVED',
+            tx_hash = excluded.tx_hash,
+            updated_at = excluded.updated_at
+        `).run(
+          appId,
+          normalized,
+          `Vendor (${normalized.slice(0, 6)}…${normalized.slice(-4)})`,
+          'ON-CHAIN-VERIFIED',
+          'VERIFIED',
+          kycCid,
+          txHash,
+          registeredAtIso,
+          new Date().toISOString()
+        );
+      }
+    } catch (err) {
+      console.warn(`[INDEXER] Could not index registered vendor ${vendorAddress}:`, err.message);
     }
   }
 

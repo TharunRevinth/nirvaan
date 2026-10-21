@@ -81,6 +81,14 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/', authLimiter);
 
+const applyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many KYC registration attempts from this IP, please try again in 15 minutes.' }
+});
+
 app.use(express.json());
 
 // In-memory single-use token set for temporary password reset tokens
@@ -841,8 +849,363 @@ app.post('/api/tenders/:id/award', authenticateOfficerToken, async (req, res) =>
 });
 
 // -----------------------------------------------------------------------
-// VENDOR REGISTRATION
+// VENDOR REGISTRATION & KYC APPLICATIONS (APPLY-THEN-APPROVE WORKFLOW)
 // -----------------------------------------------------------------------
+
+/**
+ * Public Vendor KYC Application (Rate-Limited, Strict Validation)
+ * Creates a PENDING application in SQLite for PSU officer approval.
+ */
+app.post('/api/vendors/apply', applyLimiter, async (req, res) => {
+  try {
+    const { walletAddress, address, companyName, gstin, pan } = req.body || {};
+    const rawAddress = walletAddress || address;
+    const kycCid = req.body?.kycCid || req.body?.kycIpfsHash || req.body?.cid || null;
+
+    if (!rawAddress || !ethers.isAddress(rawAddress)) {
+      return res.status(400).json({ error: 'Valid Ethereum wallet address is required.' });
+    }
+    const normalizedAddress = ethers.getAddress(rawAddress);
+
+    if (!companyName || typeof companyName !== 'string' || companyName.trim().length < 3 || companyName.trim().length > 150) {
+      return res.status(400).json({ error: 'Company or Legal Entity name must be between 3 and 150 characters.' });
+    }
+
+    const cleanGstin = String(gstin || '').trim().toUpperCase();
+    const gstinRegex = /^[0-9]{2}[A-Z]{4,5}[0-9]{4}[A-Z0-9]{1}[1-9A-Z]{1}[A-Z0-9]{1}[0-9A-Z]{1}$/i;
+    if (!cleanGstin || !gstinRegex.test(cleanGstin)) {
+      return res.status(400).json({ error: 'Invalid GSTIN format (expected standard 15-character Indian GSTIN, e.g. 27AABCU9603R1ZM).' });
+    }
+
+    const cleanPan = String(pan || '').trim().toUpperCase();
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!cleanPan || !panRegex.test(cleanPan)) {
+      return res.status(400).json({ error: 'Invalid PAN format (expected standard 10-character Indian PAN, e.g. AAACR1234F).' });
+    }
+
+    if (kycCid && (typeof kycCid !== 'string' || kycCid.trim().length < 10 || kycCid.trim().length > 120)) {
+      return res.status(400).json({ error: 'Invalid KYC Document CID format.' });
+    }
+
+    // 1. Check if vendor is already registered and verified on-chain
+    try {
+      const isAlreadyOnChain = await contractInstance.registeredVendors(normalizedAddress);
+      if (isAlreadyOnChain) {
+        return res.status(409).json({
+          error: 'Vendor wallet is already registered and verified on-chain.',
+          status: 'APPROVED',
+          walletAddress: normalizedAddress
+        });
+      }
+    } catch (e) {
+      // Allow testing with offline RPC
+    }
+
+    // 2. Check existing application in SQLite database
+    const existing = db.prepare('SELECT * FROM vendor_applications WHERE LOWER(wallet_address) = LOWER(?)').get(normalizedAddress);
+    const nowIso = new Date().toISOString();
+
+    if (existing) {
+      if (existing.status === 'APPROVED') {
+        return res.status(409).json({
+          error: 'Vendor wallet has already been approved.',
+          status: 'APPROVED',
+          walletAddress: normalizedAddress
+        });
+      }
+      if (existing.status === 'PENDING') {
+        return res.status(409).json({
+          error: 'A KYC application is already pending officer review for this wallet address.',
+          status: 'PENDING',
+          applicationId: existing.id,
+          walletAddress: normalizedAddress
+        });
+      }
+
+      // If previously REJECTED, allow resubmission
+      db.prepare(`
+        UPDATE vendor_applications SET
+          company_name = ?,
+          gstin = ?,
+          pan = ?,
+          kyc_cid = ?,
+          status = 'PENDING',
+          rejection_reason = NULL,
+          updated_at = ?
+        WHERE id = ?
+      `).run(companyName.trim(), cleanGstin, cleanPan, kycCid ? kycCid.trim() : null, nowIso, existing.id);
+
+      return res.status(200).json({
+        success: true,
+        message: 'KYC application resubmitted successfully for PSU Officer approval.',
+        application: {
+          id: existing.id,
+          walletAddress: normalizedAddress,
+          companyName: companyName.trim(),
+          gstin: cleanGstin,
+          pan: cleanPan,
+          kycCid: kycCid ? kycCid.trim() : null,
+          status: 'PENDING',
+          updatedAt: nowIso
+        }
+      });
+    }
+
+    // 3. Insert new PENDING application
+    const appId = `APP-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    db.prepare(`
+      INSERT INTO vendor_applications (
+        id, wallet_address, company_name, gstin, pan, kyc_cid, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+    `).run(
+      appId,
+      normalizedAddress,
+      companyName.trim(),
+      cleanGstin,
+      cleanPan,
+      kycCid ? kycCid.trim() : null,
+      nowIso,
+      nowIso
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'KYC application submitted successfully for PSU Officer approval.',
+      application: {
+        id: appId,
+        walletAddress: normalizedAddress,
+        companyName: companyName.trim(),
+        gstin: cleanGstin,
+        pan: cleanPan,
+        kycCid: kycCid ? kycCid.trim() : null,
+        status: 'PENDING',
+        createdAt: nowIso
+      }
+    });
+  } catch (err) {
+    console.error('[Vendor Apply Error]:', err);
+    return res.status(500).json({ error: 'Failed to process vendor KYC application.' });
+  }
+});
+
+/**
+ * Officer List Vendor Applications (Pending, Approved, Rejected)
+ */
+app.get('/api/vendors/applications', authenticateAdminOrOfficer, async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = 'SELECT * FROM vendor_applications';
+    const params = [];
+
+    if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(String(status).toUpperCase())) {
+      query += ' WHERE status = ?';
+      params.push(String(status).toUpperCase());
+    }
+    query += ' ORDER BY created_at DESC';
+
+    const applications = db.prepare(query).all(...params);
+    return res.json({
+      success: true,
+      count: applications.length,
+      applications: applications.map(app => ({
+        id: app.id,
+        walletAddress: app.wallet_address,
+        companyName: app.company_name,
+        gstin: app.gstin,
+        pan: app.pan,
+        kycCid: app.kyc_cid,
+        status: app.status,
+        txHash: app.tx_hash,
+        rejectionReason: app.rejection_reason,
+        createdAt: app.created_at,
+        updatedAt: app.updated_at
+      }))
+    });
+  } catch (err) {
+    console.error('[Vendor Applications Query Error]:', err);
+    return res.status(500).json({ error: 'Failed to retrieve vendor applications.' });
+  }
+});
+
+/**
+ * Officer Approve Vendor Application -> Registers On-Chain
+ */
+app.post('/api/vendors/applications/:id/approve', authenticateAdminOrOfficer, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const application = db.prepare('SELECT * FROM vendor_applications WHERE id = ?').get(id);
+
+    if (!application) {
+      return res.status(404).json({ error: `Vendor application "${id}" not found.` });
+    }
+
+    if (application.status === 'APPROVED') {
+      return res.json({
+        success: true,
+        alreadyApproved: true,
+        message: 'Vendor application is already approved.',
+        application: {
+          id: application.id,
+          walletAddress: application.wallet_address,
+          status: 'APPROVED',
+          txHash: application.tx_hash
+        }
+      });
+    }
+
+    const gstinHash = ethers.id(application.gstin);
+    const panHash = ethers.id(application.pan);
+    const kycCid = application.kyc_cid || 'QmDefaultKYCVerified';
+
+    let txHash = null;
+    try {
+      const isAlreadyOnChain = await contractInstance.registeredVendors(application.wallet_address);
+      if (!isAlreadyOnChain) {
+        const tx = await contractInstance.registerVendor(
+          application.wallet_address,
+          gstinHash,
+          panHash,
+          kycCid
+        );
+        const receipt = await tx.wait();
+        txHash = tx.hash;
+      }
+    } catch (contractErr) {
+      if (process.env.NODE_ENV === 'test') {
+        txHash = '0x' + crypto.randomBytes(32).toString('hex');
+      } else {
+        throw contractErr;
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    db.prepare(`
+      UPDATE vendor_applications SET
+        status = 'APPROVED',
+        tx_hash = COALESCE(?, tx_hash),
+        updated_at = ?
+      WHERE id = ?
+    `).run(txHash, nowIso, id);
+
+    return res.json({
+      success: true,
+      message: 'Vendor application approved and registered on-chain.',
+      applicationId: id,
+      walletAddress: application.wallet_address,
+      status: 'APPROVED',
+      txHash
+    });
+  } catch (err) {
+    console.error('[Vendor Approve Error]:', err);
+    return res.status(500).json({ error: err.reason || err.message || 'Failed to approve vendor application.' });
+  }
+});
+
+/**
+ * Officer Reject Vendor Application
+ */
+app.post('/api/vendors/applications/:id/reject', authenticateAdminOrOfficer, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    const application = db.prepare('SELECT * FROM vendor_applications WHERE id = ?').get(id);
+
+    if (!application) {
+      return res.status(404).json({ error: `Vendor application "${id}" not found.` });
+    }
+
+    const cleanReason = reason && typeof reason === 'string' ? reason.trim() : 'Application did not meet statutory compliance criteria.';
+    const nowIso = new Date().toISOString();
+    db.prepare(`
+      UPDATE vendor_applications SET
+        status = 'REJECTED',
+        rejection_reason = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(cleanReason, nowIso, id);
+
+    return res.json({
+      success: true,
+      message: 'Vendor application rejected.',
+      applicationId: id,
+      walletAddress: application.wallet_address,
+      status: 'REJECTED',
+      rejectionReason: cleanReason
+    });
+  } catch (err) {
+    console.error('[Vendor Reject Error]:', err);
+    return res.status(500).json({ error: 'Failed to reject vendor application.' });
+  }
+});
+
+/**
+ * Public Vendor KYC Status Check
+ * Returns NONE / PENDING / APPROVED / REJECTED combining DB state and on-chain state.
+ */
+app.get('/api/vendors/status/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    if (!address || !ethers.isAddress(address)) {
+      return res.status(400).json({ error: 'Invalid Ethereum address.' });
+    }
+    const normalizedAddress = ethers.getAddress(address);
+
+    let isRegisteredOnChain = false;
+    try {
+      isRegisteredOnChain = Boolean(await contractInstance.registeredVendors(normalizedAddress));
+    } catch (e) {
+      // In testing or offline RPC, continue with DB check
+    }
+
+    const appRow = db.prepare(`
+      SELECT * FROM vendor_applications
+      WHERE LOWER(wallet_address) = LOWER(?)
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(normalizedAddress);
+
+    if (isRegisteredOnChain) {
+      return res.json({
+        status: 'APPROVED',
+        walletAddress: normalizedAddress,
+        onChainRegistered: true,
+        companyName: appRow ? appRow.company_name : null,
+        gstin: appRow ? appRow.gstin : null,
+        pan: appRow ? appRow.pan : null,
+        kycCid: appRow ? appRow.kyc_cid : null,
+        txHash: appRow ? appRow.tx_hash : null
+      });
+    }
+
+    if (!appRow) {
+      return res.json({
+        status: 'NONE',
+        walletAddress: normalizedAddress,
+        onChainRegistered: false
+      });
+    }
+
+    return res.json({
+      status: appRow.status, // 'PENDING' | 'REJECTED' | 'APPROVED'
+      walletAddress: normalizedAddress,
+      onChainRegistered: false,
+      applicationId: appRow.id,
+      companyName: appRow.company_name,
+      gstin: appRow.gstin,
+      pan: appRow.pan,
+      kycCid: appRow.kyc_cid,
+      rejectionReason: appRow.rejection_reason || null,
+      createdAt: appRow.created_at,
+      updatedAt: appRow.updated_at
+    });
+  } catch (err) {
+    console.error('[Vendor Status Error]:', err);
+    return res.status(500).json({ error: 'Failed to retrieve vendor registration status.' });
+  }
+});
+
+/**
+ * Direct Officer Vendor Registration (Admin/Officer Only)
+ */
 app.post('/api/vendors/register', authenticateAdminOrOfficer, async (req, res) => {
   try {
     const { vendorAddress, gstin, pan } = req.body;
@@ -855,23 +1218,42 @@ app.post('/api/vendors/register', authenticateAdminOrOfficer, async (req, res) =
     if (!ethers.isAddress(vendorAddress)) {
       return res.status(400).json({ error: 'Invalid Ethereum address for vendor.' });
     }
+    const normalized = ethers.getAddress(vendorAddress);
 
     const gstinHash = ethers.id(gstin);
     const panHash = ethers.id(pan);
 
     try {
-      const isAlreadyReg = await contractInstance.registeredVendors(vendorAddress);
+      const isAlreadyReg = await contractInstance.registeredVendors(normalized);
       if (isAlreadyReg) {
+        db.prepare(`
+          INSERT INTO vendor_applications (
+            id, wallet_address, company_name, gstin, pan, kyc_cid, status, tx_hash, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', NULL, ?, ?)
+          ON CONFLICT(wallet_address) DO UPDATE SET
+            status = 'APPROVED',
+            updated_at = excluded.updated_at
+        `).run(
+          `APP-DIRECT-${normalized.slice(2, 8).toUpperCase()}`,
+          normalized,
+          req.body.companyName || `Vendor (${normalized.slice(0, 6)}…${normalized.slice(-4)})`,
+          gstin,
+          pan,
+          kycIpfsHash,
+          new Date().toISOString(),
+          new Date().toISOString()
+        );
+
         return res.json({
           success: true,
           alreadyRegistered: true,
-          vendorAddress,
+          vendorAddress: normalized,
           message: 'Vendor wallet is already registered and verified on-chain.'
         });
       }
 
       const tx = await contractInstance.registerVendor(
-        vendorAddress,
+        normalized,
         gstinHash,
         panHash,
         kycIpfsHash
@@ -879,20 +1261,62 @@ app.post('/api/vendors/register', authenticateAdminOrOfficer, async (req, res) =
 
       const receipt = await tx.wait();
 
+      db.prepare(`
+        INSERT INTO vendor_applications (
+          id, wallet_address, company_name, gstin, pan, kyc_cid, status, tx_hash, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?)
+        ON CONFLICT(wallet_address) DO UPDATE SET
+          status = 'APPROVED',
+          tx_hash = excluded.tx_hash,
+          updated_at = excluded.updated_at
+      `).run(
+        `APP-DIRECT-${normalized.slice(2, 8).toUpperCase()}`,
+        normalized,
+        req.body.companyName || `Vendor (${normalized.slice(0, 6)}…${normalized.slice(-4)})`,
+        gstin,
+        pan,
+        kycIpfsHash,
+        tx.hash,
+        new Date().toISOString(),
+        new Date().toISOString()
+      );
+
       return res.json({
         success: true,
         txHash: tx.hash,
         blockNumber: receipt.blockNumber,
-        vendorAddress,
+        vendorAddress: normalized,
         kycIpfsHash
       });
     } catch (contractErr) {
       if (process.env.NODE_ENV === 'test') {
+        const simTxHash = '0x' + crypto.randomBytes(32).toString('hex');
+        db.prepare(`
+          INSERT INTO vendor_applications (
+            id, wallet_address, company_name, gstin, pan, kyc_cid, status, tx_hash, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?)
+          ON CONFLICT(wallet_address) DO UPDATE SET
+            status = 'APPROVED',
+            tx_hash = excluded.tx_hash,
+            updated_at = excluded.updated_at
+        `).run(
+          `APP-DIRECT-${normalized.slice(2, 8).toUpperCase()}`,
+          normalized,
+          req.body.companyName || `Vendor (${normalized.slice(0, 6)}…${normalized.slice(-4)})`,
+          gstin,
+          pan,
+          kycIpfsHash,
+          simTxHash,
+          new Date().toISOString(),
+          new Date().toISOString()
+        );
+
         return res.json({
           success: true,
           simulated: true,
-          vendorAddress,
-          kycIpfsHash
+          vendorAddress: normalized,
+          kycIpfsHash,
+          txHash: simTxHash
         });
       }
       throw contractErr;

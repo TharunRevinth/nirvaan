@@ -201,26 +201,64 @@ async function runSmokeTests() {
     assert(replayRes.status === 401, `Temp token replay rejected with 401 Unauthorized`);
 
     // -------------------------------------------------------------
-    // Test 5: Authenticated Vendor KYC Registration
+    // Test 5: Vendor Apply-Then-Approve KYC Workflow
     // -------------------------------------------------------------
     const testVendorAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
-    const regRes = await fetch(`${API_URL}/api/vendors/register`, {
+
+    // 5a. Public Vendor Apply (No Officer JWT required)
+    const applyRes = await fetch(`${API_URL}/api/vendors/apply`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${officerToken}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        vendorAddress: testVendorAddress,
+        walletAddress: testVendorAddress,
         companyName: 'Bharat Pipelines & Infrastructure Ltd.',
         gstin: '07AAAAA0000A1Z5',
         pan: 'ABCDE1234F',
         kycCid: 'QmBharatPipelinesKYCDocumentDossier'
       })
     });
-    assert(regRes.status === 200, `Officer-authenticated vendor registration returns 200 OK`);
-    const regData = await regRes.json();
-    assert(regData.success === true, `Vendor registration marked success: true`);
+    assert(applyRes.status === 201 || applyRes.status === 200, `Public POST /api/vendors/apply returns 201/200 OK (Received: ${applyRes.status})`);
+    const applyData = await applyRes.json();
+    assert(applyData.success === true, `Vendor application marked success: true`);
+    const applicationId = applyData.application?.id;
+    assert(Boolean(applicationId), `Server returned application ID (${applicationId})`);
+
+    // 5b. Public Check Status (Returns PENDING before officer review)
+    const statusPendingRes = await fetch(`${API_URL}/api/vendors/status/${testVendorAddress}`);
+    assert(statusPendingRes.status === 200, `Public GET /api/vendors/status/:address returns 200 OK`);
+    const statusPendingData = await statusPendingRes.json();
+    assert(statusPendingData.status === 'PENDING', `Vendor status before officer review is "PENDING"`);
+
+    // 5c. Unauthenticated Officer Applications Access Rejected
+    const unauthAppsRes = await fetch(`${API_URL}/api/vendors/applications`);
+    assert(unauthAppsRes.status === 401, `Unauthenticated GET /api/vendors/applications rejected with 401 Unauthorized`);
+
+    // 5d. Officer List Applications
+    const appsRes = await fetch(`${API_URL}/api/vendors/applications`, {
+      headers: { 'Authorization': `Bearer ${officerToken}` }
+    });
+    assert(appsRes.status === 200, `Officer GET /api/vendors/applications returns 200 OK`);
+    const appsData = await appsRes.json();
+    const foundApp = appsData.applications?.find(a => a.id === applicationId || a.walletAddress?.toLowerCase() === testVendorAddress.toLowerCase());
+    assert(Boolean(foundApp), `Submitted application found in officer register`);
+
+    // 5e. Officer Approve Application
+    const approveRes = await fetch(`${API_URL}/api/vendors/applications/${applicationId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${officerToken}`
+      }
+    });
+    assert(approveRes.status === 200, `Officer POST /api/vendors/applications/:id/approve returns 200 OK`);
+    const approveData = await approveRes.json();
+    assert(approveData.status === 'APPROVED', `Application status transitioned to APPROVED`);
+
+    // 5f. Public Check Status (Returns APPROVED after officer review)
+    const statusApprovedRes = await fetch(`${API_URL}/api/vendors/status/${testVendorAddress}`);
+    assert(statusApprovedRes.status === 200, `Public GET /api/vendors/status/:address after approval returns 200 OK`);
+    const statusApprovedData = await statusApprovedRes.json();
+    assert(statusApprovedData.status === 'APPROVED', `Vendor status after officer review is "APPROVED"`);
 
     // -------------------------------------------------------------
     // Test 6: Create Tender Specification (NIT)

@@ -9,7 +9,7 @@
     "seed": "node scripts/seed-officers.js",
     "reset:officers": "node scripts/seed-officers.js",
     "lint": "node --check server.js db.js indexer.js embeddedKeeper.js",
-    "test": "NODE_ENV=test node --test test/indexer.test.js"
+    "test": "NODE_ENV=test DB_PATH=/tmp/nirvaan_test.db node --test --test-concurrency=1 test/*.test.js"
   },
   "engines": {
     "node": ">=22.0.0"

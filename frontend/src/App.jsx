@@ -21,6 +21,7 @@ import EvaluationAward from './pages/EvaluationAward';
 import VendorReveal from './pages/VendorReveal';
 import CVCResolution from './pages/CVCResolution';
 import Withdraw from './pages/Withdraw';
+import OfficerVendorApproval from './pages/OfficerVendorApproval';
 import { API_URL } from './config';
 
 export default function App() {
@@ -151,6 +152,22 @@ export default function App() {
                 element={
                   <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
                     <TenderCreation triggerToast={triggerToast} setTenders={setTenders} tenders={tenders} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/officer/vendors" 
+                element={
+                  <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
+                    <OfficerVendorApproval triggerToast={triggerToast} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/psu/vendors" 
+                element={
+                  <ProtectedRoute allowedRole="PSU" triggerToast={triggerToast}>
+                    <OfficerVendorApproval triggerToast={triggerToast} />
                   </ProtectedRoute>
                 } 
               />

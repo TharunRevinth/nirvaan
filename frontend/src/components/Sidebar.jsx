@@ -20,6 +20,7 @@ export default function Sidebar() {
   const psuLinks = [
     { label: 'Active Tender Register', path: '/psu/dashboard' },
     { label: 'Notice Inviting Tender (NIT)', path: '/psu/create-tender' },
+    { label: 'Vendor KYC Approvals', path: '/officer/vendors' },
     { label: 'Bid Evaluation & Award', path: '/psu/evaluation' },
     { label: 'CVC Dispute Resolution', path: '/cvc/disputes' },
   ];
