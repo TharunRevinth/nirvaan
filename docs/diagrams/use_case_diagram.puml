@@ -1,0 +1,47 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam monochrome true
+
+actor "PSU Officer\n(IOCL / BPCL / ONGC)" as Officer
+actor "Prospective Vendor\n(Supplier)" as Vendor
+actor "CVC Auditor\n(Vigilance Officer)" as CVC
+actor "Autonomous Keeper\n(Cron / Service)" as Keeper
+actor "Multisig Admin\n(Consortium Gov)" as Admin
+
+rectangle "NIRVAAN E-Tendering System" {
+    usecase "Apply for Vendor KYC" as UC_ApplyKYC
+    usecase "Review & Approve KYC on-chain" as UC_ApproveKYC
+    usecase "Create NIT Tender & Set Timestamps" as UC_CreateTender
+    usecase "Upload Specs & Encrypted Bids (IPFS)" as UC_UploadIPFS
+    usecase "Submit Salted Commit-Reveal Bid + EMD" as UC_SubmitBid
+    usecase "Trigger Bid Opening (Post-Deadline)" as UC_OpenBids
+    usecase "Cryptographically Reveal Bid & Salt" as UC_RevealBid
+    usecase "Score Technical Bids (Relay)" as UC_TechScore
+    usecase "Execute On-Chain L1 Award" as UC_AwardTender
+    usecase "File Formal Grievance & Escrow Bond" as UC_FileDispute
+    usecase "Adjudicate Dispute (Upheld / Dismissed)" as UC_ResolveDispute
+    usecase "Auto-Resolve Timed-out Dispute (>14d)" as UC_TimeoutDispute
+    usecase "Finalize Standstill & Credit Refunds" as UC_Finalize
+    usecase "Pull Payment Withdrawal" as UC_Withdraw
+    usecase "Authorize UUPS Proxy Upgrade" as UC_Upgrade
+}
+
+Vendor --> UC_ApplyKYC
+Officer --> UC_ApproveKYC
+Officer --> UC_CreateTender
+Officer --> UC_UploadIPFS
+Vendor --> UC_UploadIPFS
+Vendor --> UC_SubmitBid
+Keeper --> UC_OpenBids
+Vendor --> UC_RevealBid
+Officer --> UC_TechScore
+Officer --> UC_AwardTender
+Vendor --> UC_FileDispute
+CVC --> UC_ResolveDispute
+Keeper --> UC_TimeoutDispute
+Keeper --> UC_Finalize
+Vendor --> UC_Withdraw
+Admin --> UC_Upgrade
+@enduml

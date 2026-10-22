@@ -50,11 +50,19 @@ backend/uploads/
 contracts/slither-output.txt
 test_execution_report.txt
 
-# Screenshots & generated document reports
-docs/
+# Screenshots & old report scripts
+docs/node_modules/
+docs/*.html
+docs/generate_*.js
+docs/*Security_and_Privacy*.pdf
+docs/test_puppeteer.pdf
+docs/free-stack-implementation-plan.md
+docs/oil_tendering_report.md
+docs/PROJECT_SUMMARY_AND_ARCHITECTURE.md
 *.png
 *.jpg
 *.jpeg
 *.webp
 *.gif
+
 

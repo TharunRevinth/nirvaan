@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    actor Vendor as Prospective Vendor
+    participant Client as Frontend (React UI)
+    participant Backend as Express Server / API
+    participant DB as SQLite DB
+    actor Officer as PSU Procurement Officer
+    participant Blockchain as Sepolia Blockchain (OilTenderingV1)
+
+    Note over Vendor,Client: Step 1: Document Upload & Application Submission
+    Vendor->>Client: Input Company Name, GSTIN, PAN, KYC Doc
+    Client->>Backend: GET /api/ipfs/nonce
+    Backend-->>Client: Returns cryptographically random nonce
+    Client->>Client: Sign nonce via MetaMask (EIP-1193)
+    Client->>Backend: POST /api/ipfs/upload (File + signature + wallet)
+    Backend->>Backend: Verify signature matches wallet
+    Backend-->>Client: Returns IPFS CID (Pinata)
+    Client->>Backend: POST /api/vendors/apply (Wallet, Name, GSTIN, PAN, CID)
+    Backend->>Backend: Strict Regex Check (GSTIN, PAN, Address)
+    Backend->>DB: INSERT INTO vendor_applications (Status='PENDING')
+    Backend-->>Client: 201 Created (Application ID)
+
+    Note over Officer,Backend: Step 2: Officer Review & On-Chain Approval
+    Officer->>Client: Log in with credentials & 2FA
+    Client->>Backend: POST /api/auth/login
+    Backend-->>Client: Bearer JWT
+    Officer->>Client: Navigate to /officer/vendors
+    Client->>Backend: GET /api/vendors/applications (Bearer JWT)
+    Backend->>DB: SELECT * FROM vendor_applications
+    DB-->>Backend: List of applications
+    Backend-->>Client: Return Pending Applications
+    Officer->>Client: Click 'Approve Application'
+    Client->>Backend: POST /api/vendors/applications/:id/approve (Bearer JWT)
+    Backend->>Backend: Compute keccak256(GSTIN), keccak256(PAN)
+    Backend->>Blockchain: eth_sendTransaction: registerVendor(wallet, gstinHash, panHash, kycCid)
+    Blockchain-->>Backend: Transaction Receipt (txHash, BlockNumber)
+    Backend->>DB: UPDATE vendor_applications SET status='APPROVED', tx_hash=txHash
+    Backend-->>Client: 200 OK (Approved)
+
+    Note over Vendor,Blockchain: Step 3: Status Query & Verification
+    Vendor->>Client: Check Registration Status
+    Client->>Backend: GET /api/vendors/status/:address
+    Backend->>Blockchain: call vendors(address).isApproved
+    Backend->>DB: SELECT status FROM vendor_applications
+    Backend-->>Client: Returns status="APPROVED", onChainApproved=true

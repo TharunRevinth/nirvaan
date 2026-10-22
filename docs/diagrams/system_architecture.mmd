@@ -1,0 +1,47 @@
+graph TD
+    subgraph ClientLayer["Presentation Layer (Client)"]
+        UI["React 18 SPA (Vite + Tailwind CSS)"]
+        MM["MetaMask Browser Extension (EIP-1193)"]
+        GIGW["GIGW Accessibility Toolbar (A-/A/A+)"]
+        UI --- MM
+        UI --- GIGW
+    end
+
+    subgraph ServiceLayer["Application & Indexing Layer (Node.js / Express)"]
+        API["REST API Router (CORS, Rate Limiting, Auth Guards)"]
+        AuthModule["Officer Auth (JWT + Bcrypt) & Vendor Nonce Manager"]
+        RelayModule["Gas Relays (setTechnicalScore, awardTender)"]
+        Indexer["Adaptive Event Indexer (Alchemy 10-block Auto-Fallback)"]
+        Keeper["Autonomous Keeper Service (openBids, finalizeTender)"]
+        SQLite[("Node Native SQLite Database (node:sqlite)")]
+
+        API --> AuthModule
+        API --> RelayModule
+        API --> SQLite
+        Indexer --> SQLite
+        Keeper --> SQLite
+    end
+
+    subgraph StorageLayer["Decentralized Storage Layer"]
+        IPFS["Pinata IPFS Node / Gateway"]
+        PinataAPI["Pinata REST API / Upload Nonce Verification"]
+        PinataAPI --> IPFS
+    end
+
+    subgraph BlockchainLayer["Consortium / Public Blockchain Layer (Ethereum Sepolia)"]
+        direction TB
+        RPC["Alchemy Sepolia JSON-RPC Endpoint"]
+        Proxy["ERC1967 Transparent/UUPS Upgradeable Proxy"]
+        Impl["OilTenderingV1 Implementation Contract"]
+        
+        RPC --> Proxy
+        Proxy --> Impl
+    end
+
+    MM -->|Signed Transactions: submitBid, revealBid, disputeTender, withdraw| RPC
+    UI -->|HTTP REST Requests & Auth Tokens| API
+    UI -->|Public Read Queries| SQLite
+    API -->|Encrypted Documents & Technical Specs| PinataAPI
+    RelayModule -->|Signed Server Relays via Ethers.js| RPC
+    Keeper -->|Automated Block Monitoring & State Transitions| RPC
+    Indexer -->|Filtered Log Queries: eth_getLogs| RPC

@@ -1,0 +1,32 @@
+stateDiagram-v2
+    [*] --> Created: createTender() [by PSU Officer]
+
+    Created --> UnderEvaluation: openBids() [by Keeper when now >= openingTime]
+    Created --> Cancelled: cancelTender() [by PSU Officer]
+
+    state UnderEvaluation {
+        [*] --> BidsOpened
+        BidsOpened --> BidsRevealed: revealBid() [by Vendor when now <= revealDeadline]
+        BidsRevealed --> TechnicallyEvaluated: setTechnicalScore() [by PSU Officer]
+        TechnicallyEvaluated --> AwardReady: All bids scored
+    }
+
+    UnderEvaluation --> Awarded: awardTender() [by PSU Officer: L1 Enforcement strictly verified]
+    UnderEvaluation --> Cancelled: cancelTender() [by PSU Officer]
+
+    Awarded --> Disputed: disputeTender() [by Vendor with 0.01 ETH Bond within 7-day standstill]
+    Awarded --> Finalized: finalizeTender() [by Keeper when standstill expired (>7 days) & no active dispute]
+
+    state Disputed {
+        [*] --> GrievanceUnderReview
+        GrievanceUnderReview --> Upheld: resolveDispute(upheld=true) [by CVC Auditor]
+        GrievanceUnderReview --> Dismissed: resolveDispute(upheld=false) [by CVC Auditor]
+        GrievanceUnderReview --> TimeoutDismissed: resolveDisputeTimeout() [Anyone when CVC inactive >14 days]
+    }
+
+    Upheld --> UnderEvaluation: Winner reset, award revoked, bond refunded
+    Dismissed --> Awarded: Bond forfeited to treasury, standstill resumes
+    TimeoutDismissed --> Awarded: Bond refunded to vendor, standstill resumes
+
+    Finalized --> [*]: _creditRefunds() executed; Vendors call withdraw()
+    Cancelled --> [*]: _creditRefunds() executed; Vendors call withdraw()

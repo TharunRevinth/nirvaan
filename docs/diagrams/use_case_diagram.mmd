@@ -1,0 +1,40 @@
+flowchart LR
+    subgraph Actors["System Actors"]
+        Officer["PSU Procurement Officer"]
+        Vendor["Registered Vendor"]
+        CVC["CVC Vigilance Auditor"]
+        Keeper["Autonomous Keeper Bot"]
+        Admin["Consortium Governance Multisig"]
+    end
+
+    subgraph Actions["NIRVAAN Core Capabilities"]
+        UC1["Apply for Vendor KYC"]
+        UC2["Review & Approve KYC On-Chain"]
+        UC3["Create Tender & Publish NIT"]
+        UC4["Submit Salted Commit-Reveal Bid + EMD"]
+        UC5["Trigger Bid Opening (Post-Deadline)"]
+        UC6["Cryptographically Reveal Bid & Salt"]
+        UC7["Score Technical Proposals (Relay)"]
+        UC8["Enforce L1 Award On-Chain"]
+        UC9["File Grievance & Escrow Dispute Bond"]
+        UC10["Adjudicate Dispute (Upheld / Dismissed)"]
+        UC11["Auto-Resolve Dispute on 14-Day Timeout"]
+        UC12["Finalize Tender & Calculate Refunds"]
+        UC13["Withdraw EMD Funds (Pull Payments)"]
+        UC14["Authorize UUPS Proxy Upgrade"]
+    end
+
+    Vendor --> UC1
+    Officer --> UC2
+    Officer --> UC3
+    Vendor --> UC4
+    Keeper --> UC5
+    Vendor --> UC6
+    Officer --> UC7
+    Officer --> UC8
+    Vendor --> UC9
+    CVC --> UC10
+    Keeper --> UC11
+    Keeper --> UC12
+    Vendor --> UC13
+    Admin --> UC14

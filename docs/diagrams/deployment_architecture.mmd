@@ -1,0 +1,44 @@
+graph LR
+    subgraph UserNodes["End-User Workstations"]
+        PO["PSU Officer Browser (Vercel Client)"]
+        VB["Vendor Browser (MetaMask Enabled)"]
+        CVCO["CVC Auditor Browser"]
+    end
+
+    subgraph VercelEdge["Vercel Edge Network (Global CDN)"]
+        VDeploy["React SPA Static Assets (HTTPS / TLS 1.3)"]
+        EnvClient["Vite Injected Env (VITE_API_URL, VITE_CONTRACT_ADDRESS)"]
+        VDeploy --- EnvClient
+    end
+
+    subgraph RenderPaaS["Render Cloud Platform (Frankfurt / Oregon)"]
+        NodeSrv["Express.js Server (Node 22 LTS Runtime)"]
+        DiskDB[("Disk Mount: /tmp/nirvaan.db (SQLite Native)")]
+        BkgJobs["Internal Workers: Event Indexer + Polling Keeper"]
+        NodeSrv --- DiskDB
+        NodeSrv --- BkgJobs
+    end
+
+    subgraph MonitorNet["Operational Monitoring"]
+        Uptime["UptimeRobot Synthetic Pings (5-Min Cadence)"]
+    end
+
+    subgraph IPFSCloud["Decentralized Storage (Pinata Cloud)"]
+        IPFSRepo["IPFS Pinning Cluster (Content Addressed Storage)"]
+    end
+
+    subgraph ChainNet["Ethereum Sepolia Testnet (PoS Consensus)"]
+        AlchemyNode["Alchemy High-Availability RPC Gateway"]
+        SmartContract["NIRVAAN Proxy & OilTenderingV1"]
+        AlchemyNode --- SmartContract
+    end
+
+    PO -->|HTTPS| VDeploy
+    VB -->|HTTPS| VDeploy
+    CVCO -->|HTTPS| VDeploy
+    VDeploy -->|REST API Calls (Bearer JWT / Nonces)| NodeSrv
+    Uptime -->|GET /api/health| NodeSrv
+    NodeSrv -->|Document Pinning (Pinata SDK / JWT)| IPFSRepo
+    VB -->|Direct IPFS Fetch (CIDs)| IPFSRepo
+    VB -->|Raw JSON-RPC eth_sendTransaction| AlchemyNode
+    NodeSrv -->|eth_getLogs & Relay Transactions| AlchemyNode
