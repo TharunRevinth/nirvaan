@@ -6,37 +6,37 @@ sequenceDiagram
     participant Backend as Backend Relay Server
     participant SmartContract as OilTenderingV1 (Proxy)
     participant Keeper as Autonomous Keeper
-    participant Treasury as CVC / Govt Treasury
+    participant Treasury as Govt Treasury
 
     Note over Officer,SmartContract: Phase 1: Technical Scoring & On-Chain L1 Award
     Officer->>Backend: POST /api/tenders/:id/tech-score (Bearer JWT, scores)
     Backend->>Backend: Verify Officer PSU Tenancy Matches Tender PSU
-    Backend->>SmartContract: eth_sendTransaction: setTechnicalScore(tenderId, bidIndex, isQualified, score)
+    Backend->>SmartContract: setTechnicalScore(tenderId, bidIndex, isQualified, score)
     SmartContract-->>Backend: Emit TechnicalScoreUpdated
-    Note over SmartContract: Reveal Deadline Passes (now > revealDeadline)
+    Note over SmartContract: Reveal Deadline Passes
     Officer->>Backend: POST /api/tenders/:id/award (Bearer JWT, winner, bidId, amount)
     Backend->>Backend: Verify Officer PSU Tenancy
-    Backend->>SmartContract: eth_sendTransaction: awardTender(tenderId, winner, bidId, amount)
+    Backend->>SmartContract: awardTender(tenderId, winner, bidId, amount)
     SmartContract->>SmartContract: Reject any unrevealed bids (forfeit EMD)
-    SmartContract->>SmartContract: On-Chain L1 Check: Assert winner == lowestQualifiedVendor && amount == lowestQualifiedAmount
-    SmartContract->>SmartContract: Transition status = Awarded; record awardTimestamp = now
+    SmartContract->>SmartContract: On-Chain L1 Check: Assert winner is lowest qualified vendor
+    SmartContract->>SmartContract: Transition status to Awarded and record awardTimestamp
     SmartContract-->>Backend: Emit TenderAwarded(tenderId, winner, winningBidAmount)
 
     Note over Vendor,SmartContract: Phase 2: Standstill Period (7 Days) & Grievance Lodging
     alt Vendor Files Grievance within 7 Days
-        Vendor->>SmartContract: eth_sendTransaction: disputeTender(tenderId, reasonCid) {value: 0.01 ETH Bond}
-        SmartContract->>SmartContract: Verify: caller is bidder, now <= awardTimestamp + 7 days, value >= disputeBond
-        SmartContract->>SmartContract: Transition status = Disputed; append Dispute record
+        Vendor->>SmartContract: disputeTender(tenderId, reasonCid) with 0.01 ETH Bond
+        SmartContract->>SmartContract: Verify caller is bidder, standstill active, valid bond
+        SmartContract->>SmartContract: Transition status to Disputed and append Dispute record
         SmartContract-->>Vendor: Emit TenderDisputed(tenderId, vendor, bondAmount)
 
         Note over CVC,SmartContract: Phase 3A: CVC Vigilance Adjudication
-        CVC->>SmartContract: eth_sendTransaction: resolveDispute(tenderId, upheld, notes)
+        CVC->>SmartContract: resolveDispute(tenderId, upheld, notes)
         alt Dispute Upheld (Irregularity Found)
-            SmartContract->>SmartContract: Reset winner = 0x0; status = UnderEvaluation; credit bond refund
+            SmartContract->>SmartContract: Reset winner to zero, status to UnderEvaluation, refund bond
             SmartContract-->>CVC: Emit DisputeResolved(tenderId, true, notes)
         else Dispute Dismissed (Baseless / Frivolous)
-            SmartContract->>Treasury: Transfer dispute bond to treasuryAddress
-            SmartContract->>SmartContract: Transition status = Awarded; restart/resume standstill
+            SmartContract->>Treasury: Transfer dispute bond to treasury address
+            SmartContract->>SmartContract: Transition status to Awarded and resume standstill
             SmartContract-->>CVC: Emit DisputeResolved(tenderId, false, notes)
         end
     else Standstill Expires Cleanly (No Active Dispute)
@@ -44,11 +44,11 @@ sequenceDiagram
     end
 
     Note over Keeper,Vendor: Phase 4: Finalization & Pull Payment Refunds
-    Keeper->>SmartContract: eth_sendTransaction: finalizeTender(tenderId)
-    SmartContract->>SmartContract: Verify: status == Awarded, now >= awardTimestamp + 7 days, no pending disputes
-    SmartContract->>SmartContract: Transition status = Finalized
-    SmartContract->>SmartContract: Call _creditRefunds(): credit EMDs of all valid bidders & winner to pendingWithdrawals
+    Keeper->>SmartContract: finalizeTender(tenderId)
+    SmartContract->>SmartContract: Verify status is Awarded, 7 days passed, no active dispute
+    SmartContract->>SmartContract: Transition status to Finalized
+    SmartContract->>SmartContract: Credit EMDs of valid bidders to pendingWithdrawals
     SmartContract-->>Keeper: Emit TenderFinalized(tenderId)
-    Vendor->>SmartContract: eth_sendTransaction: withdraw()
-    SmartContract->>SmartContract: Transfer pending balance to Vendor via call{value: balance}("")
+    Vendor->>SmartContract: withdraw()
+    SmartContract->>SmartContract: Transfer pending balance via low-level call
     SmartContract-->>Vendor: Emit WithdrawalSuccessful(vendor, balance)

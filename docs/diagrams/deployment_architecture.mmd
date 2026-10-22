@@ -11,9 +11,9 @@ graph LR
         VDeploy --- EnvClient
     end
 
-    subgraph RenderPaaS["Render Cloud Platform (Frankfurt / Oregon)"]
+    subgraph RenderPaaS["Render Cloud Platform"]
         NodeSrv["Express.js Server (Node 22 LTS Runtime)"]
-        DiskDB[("Disk Mount: /tmp/nirvaan.db (SQLite Native)")]
+        DiskDB[("Disk Mount: sqlite.db (Native SQLite)")]
         BkgJobs["Internal Workers: Event Indexer + Polling Keeper"]
         NodeSrv --- DiskDB
         NodeSrv --- BkgJobs
@@ -29,16 +29,16 @@ graph LR
 
     subgraph ChainNet["Ethereum Sepolia Testnet (PoS Consensus)"]
         AlchemyNode["Alchemy High-Availability RPC Gateway"]
-        SmartContract["NIRVAAN Proxy & OilTenderingV1"]
+        SmartContract["NIRVAAN Proxy and OilTenderingV1"]
         AlchemyNode --- SmartContract
     end
 
-    PO -->|HTTPS| VDeploy
-    VB -->|HTTPS| VDeploy
-    CVCO -->|HTTPS| VDeploy
-    VDeploy -->|REST API Calls (Bearer JWT / Nonces)| NodeSrv
-    Uptime -->|GET /api/health| NodeSrv
-    NodeSrv -->|Document Pinning (Pinata SDK / JWT)| IPFSRepo
-    VB -->|Direct IPFS Fetch (CIDs)| IPFSRepo
-    VB -->|Raw JSON-RPC eth_sendTransaction| AlchemyNode
-    NodeSrv -->|eth_getLogs & Relay Transactions| AlchemyNode
+    PO -->|"HTTPS"| VDeploy
+    VB -->|"HTTPS"| VDeploy
+    CVCO -->|"HTTPS"| VDeploy
+    VDeploy -->|"REST API Calls (Bearer JWT / Nonces)"| NodeSrv
+    Uptime -->|"Health Check Pings"| NodeSrv
+    NodeSrv -->|"Document Pinning (Pinata SDK)"| IPFSRepo
+    VB -->|"Direct IPFS Fetch (CIDs)"| IPFSRepo
+    VB -->|"Raw JSON-RPC eth_sendTransaction"| AlchemyNode
+    NodeSrv -->|"eth_getLogs and Relay Transactions"| AlchemyNode

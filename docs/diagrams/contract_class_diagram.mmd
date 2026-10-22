@@ -1,15 +1,11 @@
 classDiagram
-    class Initializable {
-        <<OpenZeppelin>>
-    }
+    class Initializable
     class UUPSUpgradeable {
-        <<OpenZeppelin>>
         #_authorizeUpgrade(address newImplementation)
     }
 
     class TenderProxy {
-        <<ERC1967Proxy>>
-        +constructor(address _logic, bytes _data)
+        +constructor(address logic, bytes data)
         +_delegate(address implementation)
     }
 
@@ -22,28 +18,20 @@ classDiagram
         +uint256 defaultMinEMD
         +uint256 tenderCounter
         +uint256 bidCounter
-        +mapping(uint256 => Tender) tenders
-        +mapping(uint256 => Bid[]) tenderBids
-        +mapping(uint256 => Dispute[]) disputes
-        +mapping(address => VendorInfo) vendors
-        +mapping(address => bool) registeredPSUs
-        +mapping(address => uint256) pendingWithdrawals
-        +mapping(uint256 => mapping(address => bool)) hasBid
-
-        +initialize(address, address, address, address, uint256, uint256)
-        +registerPSU(address _psu)
-        +registerVendor(address _vendor, bytes32 _gstinHash, bytes32 _panHash, string _kycHash)
-        +createTender(string _ipfsHash, uint256 _subDeadline, uint256 _openTime, uint256 _revDeadline, uint256 _minEMD)
-        +cancelTender(uint256 _tenderId, string _reason)
-        +submitBid(uint256 _tenderId, string _encryptedBidIpfs, bytes32 _bidCommitment)
-        +openBids(uint256 _tenderId)
-        +revealBid(uint256 _tenderId, uint256 _bidIndex, uint256 _bidAmount, bytes32 _salt)
-        +setTechnicalScore(uint256 _tenderId, uint256 _bidIndex, bool _qualified, uint256 _score)
-        +awardTender(uint256 _tenderId, address _winner, uint256 _winningBidId, uint256 _winningBidAmount)
-        +disputeTender(uint256 _tenderId, string _reasonIpfsHash)
-        +resolveDispute(uint256 _tenderId, bool _upheld, string _resolutionNotes)
-        +resolveDisputeTimeout(uint256 _tenderId)
-        +finalizeTender(uint256 _tenderId)
+        +initialize(address admin, address keeper, address cvc, address treasury, uint256 bond, uint256 emd)
+        +registerPSU(address psu)
+        +registerVendor(address vendor, bytes32 gstinHash, bytes32 panHash, string kycHash)
+        +createTender(string ipfsHash, uint256 subDeadline, uint256 openTime, uint256 revDeadline, uint256 minEMD)
+        +cancelTender(uint256 tenderId, string reason)
+        +submitBid(uint256 tenderId, string encryptedBidIpfs, bytes32 bidCommitment)
+        +openBids(uint256 tenderId)
+        +revealBid(uint256 tenderId, uint256 bidIndex, uint256 bidAmount, bytes32 salt)
+        +setTechnicalScore(uint256 tenderId, uint256 bidIndex, bool qualified, uint256 score)
+        +awardTender(uint256 tenderId, address winner, uint256 winningBidId, uint256 winningBidAmount)
+        +disputeTender(uint256 tenderId, string reasonIpfsHash)
+        +resolveDispute(uint256 tenderId, bool upheld, string resolutionNotes)
+        +resolveDisputeTimeout(uint256 tenderId)
+        +finalizeTender(uint256 tenderId)
         +withdraw()
     }
 
@@ -95,38 +83,10 @@ classDiagram
         +bool isApproved
     }
 
-    class TenderStatus {
-        <<enumeration>>
-        Created
-        UnderEvaluation
-        Awarded
-        Disputed
-        Finalized
-        Cancelled
-    }
-
-    class BidStatus {
-        <<enumeration>>
-        Submitted
-        Opened
-        Accepted
-        Rejected
-    }
-
-    class DisputeStatus {
-        <<enumeration>>
-        Pending
-        Upheld
-        Dismissed
-    }
-
     UUPSUpgradeable <|-- OilTenderingV1
     Initializable <|-- OilTenderingV1
-    TenderProxy ..> OilTenderingV1 : delegates to
+    TenderProxy ..> OilTenderingV1 : delegates
     OilTenderingV1 *-- Tender
     OilTenderingV1 *-- Bid
     OilTenderingV1 *-- Dispute
     OilTenderingV1 *-- VendorInfo
-    Tender *-- TenderStatus
-    Bid *-- BidStatus
-    Dispute *-- DisputeStatus

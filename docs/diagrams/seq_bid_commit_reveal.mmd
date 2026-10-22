@@ -8,38 +8,38 @@ sequenceDiagram
     participant Indexer as Event Indexer & SQLite
 
     Note over Vendor,SmartContract: Phase 1: Sealed Bid Commitment (Pre-Deadline)
-    Vendor->>Client: Input Bid Amount (e.g., 0.45 ETH) & Technical Specs
+    Vendor->>Client: Input Bid Amount (e.g., 0.45 ETH) and Technical Specs
     Client->>Client: Generate random 32-byte salt (crypto.getRandomValues)
-    Client->>Client: Compute Commitment = keccak256(abi.encodePacked(vendorAddress, bidAmountWei, salt, tenderId))
-    Client->>Client: Save salt & amount to LocalStorage and trigger JSON backup file download
-    Client->>IPFS: Upload encrypted/technical specs doc -> returns CID
+    Client->>Client: Compute Commitment = keccak256(vendorAddress, bidAmount, salt, tenderId)
+    Client->>Client: Save salt and amount to LocalStorage and trigger JSON backup file
+    Client->>IPFS: Upload technical specs doc -> returns CID
     Vendor->>Client: Confirm MetaMask transaction
-    Client->>SmartContract: eth_sendTransaction: submitBid(tenderId, cid, commitment) {value: minEMD}
-    SmartContract->>SmartContract: Verify: caller registered vendor, now < submissionDeadline, value >= minEMD, no duplicate
-    SmartContract->>SmartContract: Store Bid in storage array; hasBid[tenderId][vendor] = true
+    Client->>SmartContract: submitBid(tenderId, cid, commitment) with EMD value
+    SmartContract->>SmartContract: Verify caller is vendor, deadline active, valid EMD, no duplicate
+    SmartContract->>SmartContract: Store Bid in storage array and mark hasBid true
     SmartContract-->>Client: Emit BidSubmitted(tenderId, bidId, vendorAddress)
     Indexer->>SmartContract: eth_getLogs catches BidSubmitted
-    Indexer->>Indexer: Store indexed bid in SQLite (amount hidden, status='Submitted')
+    Indexer->>Indexer: Store indexed bid in SQLite (quote hidden, status=Submitted)
 
     Note over Keeper,SmartContract: Phase 2: Automated Bid Opening (Post-Deadline)
-    Note over SmartContract: Submission Deadline Expires (block.timestamp >= openingTime)
+    Note over SmartContract: Submission Deadline Expires (block timestamp past openingTime)
     Keeper->>Keeper: Polling detects tender eligible for opening
-    Keeper->>SmartContract: eth_sendTransaction: openBids(tenderId)
-    SmartContract->>SmartContract: Verify: now >= openingTime, status == Created
-    SmartContract->>SmartContract: Transition status = UnderEvaluation
-    SmartContract-->>Keeper: Emit BidsOpened(tenderId, block.timestamp)
+    Keeper->>SmartContract: openBids(tenderId)
+    SmartContract->>SmartContract: Verify timestamp past openingTime, status is Created
+    SmartContract->>SmartContract: Transition status to UnderEvaluation
+    SmartContract-->>Keeper: Emit BidsOpened(tenderId, timestamp)
     Indexer->>SmartContract: eth_getLogs catches BidsOpened
-    Indexer->>Indexer: Update tender status='UnderEvaluation' in SQLite
+    Indexer->>Indexer: Update tender status to UnderEvaluation in SQLite
 
     Note over Vendor,SmartContract: Phase 3: Cryptographic Reveal (Reveal Window Active)
     Vendor->>Client: Open Tender Detail Page (Status: UnderEvaluation)
-    Client->>Client: Retrieve salt & bidAmount from LocalStorage (or JSON file upload)
+    Client->>Client: Retrieve salt and bidAmount from LocalStorage or JSON file
     Vendor->>Client: Click 'Reveal Bid'
-    Client->>SmartContract: eth_sendTransaction: revealBid(tenderId, bidIndex, bidAmountWei, salt)
-    SmartContract->>SmartContract: Verify: now <= revealDeadline, status == UnderEvaluation
+    Client->>SmartContract: revealBid(tenderId, bidIndex, bidAmountWei, salt)
+    SmartContract->>SmartContract: Verify timestamp within reveal window, status UnderEvaluation
     SmartContract->>SmartContract: Recompute keccak256(msg.sender, bidAmountWei, salt, tenderId)
-    SmartContract->>SmartContract: Assert recomputedCommitment == bid.bidCommitment
-    SmartContract->>SmartContract: Record bid.bidAmount = bidAmountWei; status = Opened
+    SmartContract->>SmartContract: Assert recomputed commitment equals stored commitment
+    SmartContract->>SmartContract: Record bidAmount and update status to Opened
     SmartContract-->>Client: Emit BidRevealed(tenderId, bidIndex, vendorAddress, bidAmountWei)
     Indexer->>SmartContract: eth_getLogs catches BidRevealed
-    Indexer->>Indexer: Update bid status='Opened', amount_eth, amount_wei in SQLite
+    Indexer->>Indexer: Update bid status to Opened and record amount in SQLite

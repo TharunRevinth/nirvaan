@@ -1,0 +1,35 @@
+flowchart TD
+    Q1{"Is there a need to store state?"}
+    No1["Do not use Blockchain<br/>(State storage not required)"]
+    Q2{"Are there multiple writers?"}
+    No2["Do not use Blockchain<br/>(Use standard file / single DB)"]
+    Q3{"Can an online Trusted Third Party<br/>(TTP) always be trusted?"}
+    Yes3["Use Traditional Centralized RDBMS<br/>(e.g., PostgreSQL / Oracle)"]
+    Q4{"Are all writers known?"}
+    No4["Use Permissionless Public Blockchain<br/>(e.g., Bitcoin / Ethereum Mainnet)"]
+    Q5{"Are all writers trusted?"}
+    Yes5["Use Shared Distributed Database<br/>with trusted write consensus"]
+    Q6{"Is public verifiability required?"}
+    Yes6["NIRVAAN Architecture:<br/><b>Permissioned / Consortium Blockchain</b><br/>(Ethereum Sepolia / Hyperledger Besu)"]
+    No6["Use Private Consortium Blockchain<br/>with restricted read permissions"]
+
+    Q1 -->|No| No1
+    Q1 -->|Yes| Q2
+    Q2 -->|No| No2
+    Q2 -->|Yes| Q3
+    Q3 -->|Yes| Yes3
+    Q3 -->|No| Q4
+    Q4 -->|No| No4
+    Q4 -->|Yes| Q5
+    Q5 -->|Yes| Yes5
+    Q5 -->|No| Q6
+    Q6 -->|Yes| Yes6
+    Q6 -->|No| No6
+
+    style Yes6 fill:#e1f5fe,stroke:#0288d1,stroke-width:3px,color:#01579b
+    style Q1 fill:#f5f5f5,stroke:#333,stroke-width:1.5px
+    style Q2 fill:#f5f5f5,stroke:#333,stroke-width:1.5px
+    style Q3 fill:#f5f5f5,stroke:#333,stroke-width:1.5px
+    style Q4 fill:#f5f5f5,stroke:#333,stroke-width:1.5px
+    style Q5 fill:#f5f5f5,stroke:#333,stroke-width:1.5px
+    style Q6 fill:#f5f5f5,stroke:#333,stroke-width:1.5px

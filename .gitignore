@@ -59,6 +59,8 @@ docs/test_puppeteer.pdf
 docs/free-stack-implementation-plan.md
 docs/oil_tendering_report.md
 docs/PROJECT_SUMMARY_AND_ARCHITECTURE.md
+docs/diagrams/mermaid.min.js
+docs/diagrams/*.cjs
 *.png
 *.jpg
 *.jpeg

@@ -365,39 +365,7 @@ The Wüst-Gervais framework evaluates six fundamental architectural questions:
 
 According to the Wüst-Gervais decision matrix, when a system requires shared state, multiple known but mutually distrusting writers, public verifiability, and lacks a perpetually trustworthy third party, the required solution is a **Permissioned / Consortium Blockchain**.
 
-```
-                           +------------------------+
-                           |  Need to store state?  |
-                           +------------------------+
-                                       | Yes
-                                       v
-                           +------------------------+
-                           |   Multiple writers?    |
-                           +------------------------+
-                                       | Yes
-                                       v
-                           +------------------------+
-                           |  Can we rely on a TTP? | ===> No
-                           +------------------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  Are all writers known?| ===> Yes
-                           +------------------------+
-                                       |
-                                       v
-                           +------------------------+
-                           |  Are all writers trusted?| ===> No
-                           +------------------------+
-                                       |
-                                       v
-                           +------------------------+
-                           | Public verifiability?  | ===> Yes
-                           +------------------------+
-                                       |
-                                       v
-                      [ CONSORTIUM BLOCKCHAIN REQUIRED ]
-```
+![Wüst-Gervais Decision Framework Flowchart](diagrams/wust_gervais_flowchart.png)
 
 ## 3.2 Comparative Analysis: Relational Database vs. Distributed Ledger
 To further clarify the architectural divergence, Table 1 provides an exhaustive comparison between a traditional Relational Database Management System (RDBMS) such as PostgreSQL/Oracle and the NIRVAAN Consortium Blockchain architecture.
@@ -566,37 +534,7 @@ Table 3 formalizes the matrix of system actors, credential mechanisms, and opera
 
 Figure 3 illustrates the comprehensive Use Case diagram capturing the interactions among the five system actors and the NIRVAAN platform boundaries.
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    NIRVAAN E-TENDERING SYSTEM                                       |
-|                                                                                                    |
-|    +-------------------------+                 +----------------------------------------------+    |
-|    | Prospective Vendor      |                 | PSU Procurement Officer                      |    |
-|    +-------------------------+                 +----------------------------------------------+    |
-|      |         |         |                       |                 |                 |             |
-|      | Apply   | Commit  | Reveal                | Approve         | Create          | Score &     |
-|      | KYC     | Bid     | Bid                   | KYC             | NIT             | Relay Award |
-|      v         v         v                       v                 v                 v             |
-|   ( UC-01 ) ( UC-03 ) ( UC-05 )              ( UC-02 )         ( UC-04 )         ( UC-07 )         |
-|      |                   |                                                           |             |
-|      | Lodge Dispute     | Withdraw EMD                                              |             |
-|      v                   v                                                           |             |
-|   ( UC-08 )           ( UC-10 )                                                      |             |
-|      ^                                                                               |             |
-|      | Adjudicate Grievance                                                          |             |
-|   +-------------------------+                                                        |             |
-|   | CVC Vigilance Auditor   |                                                        |             |
-|   +-------------------------+                                                        |             |
-|                                                                                      |             |
-|   +-------------------------+                     +----------------------------------+             |
-|   | Autonomous Keeper Bot   |                     | Consortium Multisig Admin                      |    |
-|   +-------------------------+                     +----------------------------------+             |
-|      |                   |                           |                                             |
-|      | Trigger Opening   | Finalize Standstill       | Authorize UUPS Upgrade                      |
-|      v                   v                           v                                             |
-|   ( UC-06 )           ( UC-09 )                   ( UC-11 )                                        |
-+----------------------------------------------------------------------------------------------------+
-```
+![Figure 3: Unified Use Case Model for Consortium Procurement Actors](diagrams/use_case_diagram.png)
 \begin{center}
 \textbf{Figure 3: Unified Use Case Model for Consortium Procurement Actors}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/use\_case\_diagram.puml} and \texttt{use\_case\_diagram.mmd})}
@@ -611,54 +549,7 @@ The NIRVAAN platform is architected according to a decoupled, multi-tier softwar
 
 Figure 1 illustrates the multi-tier component interactions governing NIRVAAN.
 
-```
-+---------------------------------------------------------------------------------------------------+
-|                                      PRESENTATION LAYER                                           |
-|   +------------------------------------+              +------------------------------------+      |
-|   | React 18 Single Page Application   |              | MetaMask Web3 Provider (EIP-1193)  |      |
-|   | (Vite, Tailwind CSS, Lucide Icons) | <----------> | (Cryptographic Transaction Signer) |      |
-|   +------------------------------------+              +------------------------------------+      |
-|   | GIGW Compliance Bar (A-/A/A+, High Contrast Mode)                                      |      |
-+---------------------------------------------------------------------------------------------------+
-                                   |                                        |
-                 REST API Calls    |                                        | Signed Transactions
-                 (Bearer JWT/Nonce)|                                        | (submitBid, revealBid,
-                                   v                                        |  dispute, withdraw)
-+-------------------------------------------------------------+             |
-|                 APPLICATION & RELAY LAYER                   |             |
-|   +-------------------------------------------------------+ |             |
-|   | Express.js REST API Server (Node.js 22 LTS)           | |             |
-|   | - Tenant Isolation Middleware (req.officer.psu)       | |             |
-|   | - Challenge Nonce Auth Manager (/api/ipfs/nonce)      | |             |
-|   | - Gas Relay Engine (tech-score, award relays)         | |             |
-|   +-------------------------------------------------------+ |             |
-|   | Background Workers:                                   | |             |
-|   | - Adaptive Event Indexer (Alchemy 10-Block Fallback)  | |             |
-|   | - Polling Keeper Service (openBids, finalizeTender)   | |             |
-+-------------------------------------------------------------+             |
-                  |                       |                                 |
-     Local Cache  |          Upload Docs  | Pinata API                      |
-     Read/Write   |          (JWT Auth)   | (CIDs)                          |
-                  v                       v                                 |
-+---------------------------+ +----------------------------+                |
-| OFF-CHAIN STORAGE LAYER   | | DECENTRALIZED STORAGE      |                |
-| Node.js Native SQLite     | | Pinata IPFS Cluster        |                |
-| (node:sqlite Native Engine| | - Encrypted Technical Docs |                |
-| DB: /tmp/nirvaan.db)      | | - Notice Inviting Tenders  |                |
-+---------------------------+ +----------------------------+                |
-                                                                            |
-                                                                            v
-+---------------------------------------------------------------------------------------------------+
-|                            BLOCKCHAIN LAYER (ETHEREUM SEPOLIA)                                    |
-|   +-------------------------------------------------------------------------------------------+   |
-|   | Alchemy High-Availability JSON-RPC Node Gateway (Chain ID: 11155111)                      |   |
-|   +-------------------------------------------------------------------------------------------+   |
-|   | ERC-1967 Transparent Upgradeable Proxy (TenderProxy)                                      |   |
-|   |                                  | Delegates Call via delegatecall                        |   |
-|   |                                  v                                                        |   |
-|   | OilTenderingV1 Logic Implementation Contract (Solidity 0.8.24, OpenZeppelin Upgradeable)  |   |
-+---------------------------------------------------------------------------------------------------+
-```
+![Figure 1: Multi-Tier System Architecture of the NIRVAAN E-Tendering Platform](diagrams/system_architecture.png)
 \begin{center}
 \textbf{Figure 1: Multi-Tier System Architecture of the NIRVAAN E-Tendering Platform}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/system\_architecture.mmd})}
@@ -677,47 +568,7 @@ The selection of each framework and protocol across the NIRVAAN stack was driven
 ## 6.3 Deployment Topography
 Figure 2 outlines the physical cloud deployment architecture of the NIRVAAN ecosystem, illustrating how client workstations, edge networks, platform-as-a-service (PaaS) nodes, and blockchain infrastructures interact.
 
-```
-+-------------------+       +-------------------+       +-------------------+
-|  PSU Officer Work |       |  Vendor Terminal  |       |  CVC Vigilance    |
-|  (Chrome / Edge)  |       |  (MetaMask Web3)  |       |  Auditor Terminal |
-+-------------------+       +-------------------+       +-------------------+
-          \                           |                           /
-           \                          |                          /
-            v                         v                         v
-     +---------------------------------------------------------------+
-     |              VERCEL EDGE NETWORK (GLOBAL CDN)                 |
-     |  - React 18 SPA Production Distribution                      |
-     |  - HTTPS / TLS 1.3 Terminated Edge                            |
-     |  - Injected Client Envs: VITE_API_URL, VITE_CONTRACT_ADDRESS  |
-     +---------------------------------------------------------------+
-                    |                                 |
-                    | REST API (Bearer JWT / Nonces)  | Direct Web3 RPC
-                    v                                 | (Signed Txs)
-     +-------------------------------+                |
-     |  RENDER CLOUD PLATFORM        |                |
-     |  - Node 22 Express Engine     |                |
-     |  - In-Memory /tmp/nirvaan.db  |                |
-     |  - Background Indexer Worker  |                |
-     |  - Autonomous Keeper Cron     |                |
-     +-------------------------------+                |
-          |               |                           |
-  Periodic| Health Pings  | Pin Files                 |
-          v               v                           |
-+------------------+  +--------------------+          |
-| UPTIMEROBOT      |  | PINATA IPFS CLUSTER|          |
-| Synthetic Pinger |  | Content-Addressed  |          |
-| (5-min keepalive)|  | Document Pinning   |          |
-+------------------+  +--------------------+          |
-                                                      |
-                                                      v
-     +---------------------------------------------------------------+
-     |             ETHEREUM SEPOLIA DISTRIBUTED LEDGER               |
-     |  - Alchemy High-Availability RPC Gateway                      |
-     |  - Proof of Stake Consensus Nodes                             |
-     |  - NIRVAAN ERC-1967 Proxy: 0x937c569f...                     |
-     +---------------------------------------------------------------+
-```
+![Figure 2: Cloud and Distributed Node Deployment Topography](diagrams/deployment_architecture.png)
 \begin{center}
 \textbf{Figure 2: Cloud and Distributed Node Deployment Topography}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/deployment\_architecture.mmd})}
@@ -762,53 +613,7 @@ enum TenderStatus { Created, UnderEvaluation, Awarded, Disputed, Finalized, Canc
 
 Figure 4 illustrates the complete state transition topology, including programmatic guards, role permissions, and error revert conditions.
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    TENDER STATE MACHINE MODEL                                      |
-|                                                                                                    |
-|    [ (Start) ]                                                                                     |
-|         |                                                                                          |
-|         | createTender() [onlyPSU]                                                                 |
-|         v                                                                                          |
-|    +-------------------+           cancelTender() [onlyPSU]           +-------------------+        |
-|    |      Created      | -------------------------------------------> |     Cancelled     |        |
-|    +-------------------+                                              +-------------------+        |
-|         |                                                                      ^                   |
-|         | openBids() [onlyKeeper: block.timestamp >= openingTime]              |                   |
-|         v                                                                      |                   |
-|    +-------------------+           cancelTender() [onlyPSU]                    |                   |
-|    |  UnderEvaluation  | ------------------------------------------------------+                   |
-|    +-------------------+                                                                           |
-|         |                                                                                          |
-|         | Internal Lifecycle:                                                                      |
-|         |   1. revealBid() [onlyVendor: now <= revealDeadline]                                     |
-|         |   2. setTechnicalScore() [onlyPSU: score >= 0 && score <= 100]                            |
-|         |                                                                                          |
-|         | awardTender() [onlyPSU: now > revealDeadline && L1 Validation Checks]                    |
-|         v                                                                                          |
-|    +-------------------+           disputeTender() [onlyBidder + 0.01 ETH Bond]                    |
-|    |      Awarded      | -------------------------------------------> +-------------------+        |
-|    +-------------------+                                              |     Disputed      |        |
-|         |        ^                                                    +-------------------+        |
-|         |        | resolveDispute(upheld=false) [onlyCVC]                       |                  |
-|         |        |   OR resolveDisputeTimeout() [anyone: > 14 days]             |                  |
-|         |        +--------------------------------------------------------------+                  |
-|         |                                                                       |                  |
-|         |                                 resolveDispute(upheld=true) [onlyCVC] |                  |
-|         |                                 (Resets winner state)                 v                  |
-|         |                                                     +-------------------+                |
-|         |                                                     |  UnderEvaluation  |                |
-|         | finalizeTender() [onlyKeeper:                       +-------------------+                |
-|         |                   now >= awardTimestamp + 7 days]                                        |
-|         v                                                                                          |
-|    +-------------------+                                                                           |
-|    |     Finalized     | ===> Triggers _creditRefunds()                                            |
-|    +-------------------+      (Qualified losers & winner EMD credited to pendingWithdrawals)       |
-|         |                                                                                          |
-|         v                                                                                          |
-|     [ (End) ]                                                                                      |
-+----------------------------------------------------------------------------------------------------+
-```
+![Figure 4: State Machine Model of the NIRVAAN Tender Lifecycle](diagrams/tender_state_machine.png)
 \begin{center}
 \textbf{Figure 4: State Machine Model of the NIRVAAN Tender Lifecycle}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/tender\_state\_machine.mmd})}
@@ -817,44 +622,7 @@ Figure 4 illustrates the complete state transition topology, including programma
 ## 7.2 Data Structures and Storage Layout
 Figure 5 presents the structural class diagram depicting the entity relationships, storage variables, and structs defined within `OilTenderingV1.sol`.
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    SMART CONTRACT ENTITY MODEL                                     |
-|                                                                                                    |
-|    +------------------------------------+              +------------------------------------+      |
-|    | Tender                             |              | Bid                                |      |
-|    +------------------------------------+              +------------------------------------+      |
-|    | uint256 id                         | 1          * | uint256 id                         |      |
-|    | address psuAddress                 | <----------> | uint256 tenderId                   |      |
-|    | string tenderIpfsHash              |              | address vendorAddress              |      |
-|    | uint256 minEMDAmount               |              | string encryptedBidIpfsHash        |      |
-|    | uint256 submissionDeadline         |              | bytes32 bidCommitment              |      |
-|    | uint256 openingTime                |              | uint256 submissionTime             |      |
-|    | uint256 revealDeadline             |              | uint256 bidAmount                  |      |
-|    | TenderStatus status                |              | BidStatus status                   |      |
-|    | address winner                     |              | bool isTechQualified               |      |
-|    | uint256 winningBidId               |              | uint256 techScore                  |      |
-|    | uint256 winningBidAmount           |              | uint256 emdDeposited               |      |
-|    | uint256 awardTimestamp             |              +------------------------------------+      |
-|    +------------------------------------+                                                          |
-|                      | 1                                                                           |
-|                      |                                                                             |
-|                      | 0..*                                                                        |
-|                      v                                                                             |
-|    +------------------------------------+              +------------------------------------+      |
-|    | Dispute                            |              | VendorInfo                         |      |
-|    +------------------------------------+              +------------------------------------+      |
-|    | uint256 id                         |              | address wallet                     |      |
-|    | uint256 tenderId                   |              | bytes32 gstinHash                  |      |
-|    | address disputingVendor            |              | bytes32 panHash                    |      |
-|    | string reasonIpfsHash              |              | string kycDocIpfsHash              |      |
-|    | uint256 timestamp                  |              | bool isApproved                    |      |
-|    | DisputeStatus status               |              +------------------------------------+      |
-|    | string resolutionNotes             |                                                          |
-|    | uint256 bondAmount                 |                                                          |
-|    +------------------------------------+                                                          |
-+----------------------------------------------------------------------------------------------------+
-```
+![Figure 5: Smart Contract Struct and Entity Class Diagram](diagrams/contract_class_diagram.png)
 \begin{center}
 \textbf{Figure 5: Smart Contract Struct and Entity Class Diagram}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/contract\_class\_diagram.mmd})}
@@ -973,51 +741,7 @@ To satisfy Indian regulatory mandates (such as the CVC guidelines and the Digita
 
 Figure 7 models the sequence of operations governing the apply-then-approve onboarding architecture.
 
-```
-+---------------------------------------------------------------------------------------------------+
-|                        SEQUENCE MODEL: VENDOR KYC APPLY AND APPROVAL                              |
-|                                                                                                   |
-|  Vendor                 Frontend UI             Express Server          SQLite DB        Sepolia  |
-|    |                         |                        |                     |               |     |
-|    | 1. Input Reg Details    |                        |                     |               |     |
-|    |------------------------>|                        |                     |               |     |
-|    |                         | 2. GET /api/ipfs/nonce |                     |               |     |
-|    |                         |----------------------->|                     |               |     |
-|    |                         | 3. Returns Rand Nonce  |                     |               |     |
-|    |                         |<-----------------------|                     |               |     |
-|    | 4. Sign Nonce (MetaMask)|                        |                     |               |     |
-|    |------------------------>|                        |                     |               |     |
-|    |                         | 5. Upload Doc + Sign   |                     |               |     |
-|    |                         |----------------------->|                     |               |     |
-|    |                         |                        | (Verify Signature)  |               |     |
-|    |                         |                        | (Pin to Pinata IPFS)|               |     |
-|    |                         | 6. Returns IPFS CID    |                     |               |     |
-|    |                         |<-----------------------|                     |               |     |
-|    |                         | 7. POST /api/vendors/apply                   |               |     |
-|    |                         |----------------------->|                     |               |     |
-|    |                         |                        | 8. Insert PENDING   |               |     |
-|    |                         |                        |-------------------->|               |     |
-|    |                         | 9. 201 Created         |                     |               |     |
-|    |                         |<-----------------------|                     |               |     |
-|    |                         |                        |                     |               |     |
-|    | (PSU Officer Reviews)   |                        |                     |               |     |
-|    |                         | 10. GET /api/vendors/applications (Officer)  |               |     |
-|    |                         |----------------------->|                     |               |     |
-|    |                         |                        | 11. Fetch Pending   |               |     |
-|    |                         |                        |-------------------->|               |     |
-|    |                         | 12. Approve Application|                     |               |     |
-|    |                         |----------------------->|                     |               |     |
-|    |                         |                        | 13. Hash PAN/GSTIN  |               |     |
-|    |                         |                        | 14. registerVendor()|               |     |
-|    |                         |                        |------------------------------------>|     |
-|    |                         |                        | 15. Tx Receipt (txHash, BlockNum)   |     |
-|    |                         |                        |<------------------------------------|     |
-|    |                         |                        | 16. Update APPROVED |               |     |
-|    |                         |                        |-------------------->|               |     |
-|    |                         | 17. 200 OK (Approved)  |                     |               |     |
-|    |                         |<-----------------------|                     |               |     |
-+---------------------------------------------------------------------------------------------------+
-```
+![Figure 7: Sequence Model: Vendor KYC Application and On-Chain Authorization](diagrams/seq_vendor_kyc.png)
 \begin{center}
 \textbf{Figure 7: Sequence Model: Vendor KYC Application and On-Chain Authorization}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/seq\_vendor\_kyc.mmd})}
@@ -1037,42 +761,7 @@ When an authorized PSU officer initiates a tender:
 ## 8.3 Cryptographic Sealed Bid Commitment and Reveal Workflow
 Figure 8 details the end-to-end cryptographic sequence governing sealed bid submission, automated unsealing, and commercial revelation.
 
-```
-+---------------------------------------------------------------------------------------------------+
-|                  SEQUENCE MODEL: SEALED BID COMMITMENT AND REVEAL WORKFLOW                        |
-|                                                                                                   |
-|  Vendor UI              Pinata IPFS             Smart Contract          Keeper Bot       Indexer  |
-|     |                        |                        |                     |               |     |
-|     | 1. Input Quote & Salt  |                        |                     |               |     |
-|     | 2. Compute Commitment  |                        |                     |               |     |
-|     | 3. Backup JSON File    |                        |                     |               |     |
-|     | 4. Upload Tech Specs   |                        |                     |               |     |
-|     |----------------------->|                        |                     |               |     |
-|     | 5. Return Proposal CID |                        |                     |               |     |
-|     |<-----------------------|                        |                     |               |     |
-|     | 6. submitBid(id, cid, commitment) {value: EMD}  |                     |               |     |
-|     |------------------------------------------------>|                     |               |     |
-|     |                        |                        | 7. Emit BidSubmitted|               |     |
-|     |                        |                        |------------------------------------>|     |
-|     |                        |                        |                     |   (Store Bid) |     |
-|     |                        |                        |                     |               |     |
-|     | (Submission Deadline Passes: now >= openingTime)|                     |               |     |
-|     |                        |                        | 8. openBids(id)     |               |     |
-|     |                        |                        |<--------------------|               |     |
-|     |                        |                        | 9. Emit BidsOpened  |               |     |
-|     |                        |                        |------------------------------------>|     |
-|     |                        |                        |                     |  (Status:Eval)|     |
-|     |                        |                        |                     |               |     |
-|     | (Reveal Window Active: now <= revealDeadline)   |                     |               |     |
-|     | 10. Load Salt & Quote  |                        |                     |               |     |
-|     | 11. revealBid(tenderId, bidIndex, quote, salt)  |                     |               |     |
-|     |------------------------------------------------>|                     |               |     |
-|     |                        |                        | 12. Verify keccak256|               |     |
-|     |                        |                        | 13. Emit BidRevealed|               |     |
-|     |                        |                        |------------------------------------>|     |
-|     |                        |                        |                     | (Store Amount)|     |
-+---------------------------------------------------------------------------------------------------+
-```
+![Figure 8: Sequence Model: Cryptographic Sealed Bid Commitment and Reveal Workflow](diagrams/seq_bid_commit_reveal.png)
 \begin{center}
 \textbf{Figure 8: Sequence Model: Cryptographic Sealed Bid Commitment and Reveal Workflow}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/seq\_bid\_commit\_reveal.mmd})}
@@ -1095,44 +784,7 @@ Once commercial bids are unsealed:
 ## 8.5 Standstill Period, CVC Dispute Resolution, and Escrow Finalization
 Figure 9 illustrates the final governance phase of the tender lifecycle, encompassing grievance lodging, CVC arbitration, and pull-payment refunds.
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                SEQUENCE MODEL: AWARD, STANDSTILL, DISPUTE, AND REFUND ESCROW                      |
-|                                                                                                    |
-|  PSU Officer           Vendor (L2/L3)          CVC Auditor             Smart Contract   Keeper Bot |
-|      |                        |                      |                       |               |     |
-|      | 1. awardTender() (Relay)                      |                       |               |     |
-|      |---------------------------------------------------------------------->|               |     |
-|      |                        |                      |                       | 2. Assert L1  |     |
-|      |                        |                      |                       | 3. Status:    |     |
-|      |                        |                      |                       |    Awarded    |     |
-|      |                        |                      |                       |               |     |
-|      | (7-Day Standstill Window Begins)              |                       |               |     |
-|      |                        | 4. disputeTender(reasonCID) {0.01 ETH Bond}  |               |     |
-|      |                        |--------------------------------------------->|               |     |
-|      |                        |                      |                       | 5. Status:    |     |
-|      |                        |                      |                       |    Disputed   |     |
-|      |                        |                      |                       |               |     |
-|      |                        |                      | 6. resolveDispute()   |               |     |
-|      |                        |                      |---------------------->|               |     |
-|      |                        |                      |                       |               |     |
-|      | [If Upheld]: Winner reset to 0x0; status resets to UnderEvaluation;   |               |     |
-|      |              dispute bond refunded to vendor via pendingWithdrawals.  |               |     |
-|      |                                                                       |               |     |
-|      | [If Dismissed]: Bond forfeited to Treasury; status returns to Awarded;|               |     |
-|      |                 standstill timer resumes.                             |               |     |
-|      |                                                                       |               |     |
-|      | (Standstill Lapses > 7 Days Without Active Dispute)                   |               |     |
-|      |                        |                      |                       | 7. finalize() |     |
-|      |                        |                      |                       |<--------------|     |
-|      |                        |                      |                       | 8. _credit-   |     |
-|      |                        |                      |                       |    Refunds()  |     |
-|      |                        | 9. withdraw()        |                       |               |     |
-|      |                        |--------------------------------------------->|               |     |
-|      |                        | 10. Native ETH Disbursed                     |               |     |
-|      |                        |<---------------------------------------------|               |     |
-+----------------------------------------------------------------------------------------------------+
-```
+![Figure 9: Sequence Model: Technical Evaluation, L1 Award, Standstill, and CVC Grievance Resolution](diagrams/seq_award_dispute.png)
 \begin{center}
 \textbf{Figure 9: Sequence Model: Technical Evaluation, L1 Award, Standstill, and CVC Grievance Resolution}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/seq\_award\_dispute.mmd})}
@@ -1143,62 +795,7 @@ Figure 9 illustrates the final governance phase of the tender lifecycle, encompa
 ## 8.6 Database Schema and Entity Relationships
 Figure 6 models the off-chain relational database schema implemented in `backend/db.js` using Node.js's native `node:sqlite` engine.
 
-```
-+----------------------------------------------------------------------------------------------------+
-|                                    OFF-CHAIN DATABASE ER MODEL                                     |
-|                                                                                                    |
-|    +------------------------------------+              +------------------------------------+      |
-|    | officers                           |              | tenders                            |      |
-|    +------------------------------------+              +------------------------------------+      |
-|    | TEXT id [PK]                       | 1          * | INTEGER on_chain_id [PK]           |      |
-|    | TEXT username [UQ]                 | <----------> | TEXT code                          |      |
-|    | TEXT psu                           | (by tenancy) | TEXT psu                           |      |
-|    | TEXT password_hash                 |              | TEXT category                      |      |
-|    | INTEGER must_change_password       |              | TEXT title                         |      |
-|    | TEXT officer_id [UQ]               |              | TEXT description                   |      |
-|    | TEXT email                         |              | TEXT budget                        |      |
-|    | TEXT created_at                    |              | TEXT min_emd_wei                   |      |
-|    +------------------------------------+              | TEXT min_emd_eth                   |      |
-|                                                        | TEXT submission_deadline           |      |
-|                                                        | TEXT opening_time                  |      |
-|                                                        | TEXT reveal_deadline               |      |
-|                                                        | TEXT appeal_deadline               |      |
-|                                                        | TEXT status                        |      |
-|                                                        | TEXT cid                           |      |
-|                                                        | TEXT tx_hash                       |      |
-|                                                        | INTEGER block_number               |      |
-|                                                        | TEXT created_at                    |      |
-|                                                        | TEXT awarded_to                    |      |
-|                                                        | TEXT awarded_amount_eth            |      |
-|                                                        | TEXT award_tx_hash                 |      |
-|                                                        | INTEGER award_block_number         |      |
-|                                                        | TEXT appeal_window_ends            |      |
-|                                                        +------------------------------------+      |
-|                                                                          | 1                       |
-|                                                                          |                         |
-|                                                                          | 0..*                    |
-|                                                                          v                         |
-|    +------------------------------------+              +------------------------------------+      |
-|    | vendor_applications                |              | bids                               |      |
-|    +------------------------------------+              +------------------------------------+      |
-|    | TEXT id [PK]                       | 1          * | TEXT id [PK]                       |      |
-|    | TEXT wallet_address [UQ]           | <----------> | INTEGER tender_id [FK]             |      |
-|    | TEXT company_name                  | (by address) | TEXT vendor_address                |      |
-|    | TEXT gstin                         |              | INTEGER bid_index                  |      |
-|    | TEXT pan                           |              | TEXT vendor_name                   |      |
-|    | TEXT kyc_cid                       |              | TEXT vid                           |      |
-|    | TEXT status                        |              | TEXT amount_wei                    |      |
-|    | TEXT tx_hash                       |              | TEXT amount_eth                    |      |
-|    | TEXT rejection_reason              |              | TEXT commitment_hash               |      |
-|    | TEXT created_at                    |              | TEXT cid                           |      |
-|    | TEXT updated_at                    |              | INTEGER is_qualified               |      |
-|    +------------------------------------+              | INTEGER tech_score                 |      |
-|                                                        | TEXT status                        |      |
-|                                                        | TEXT submission_time               |      |
-|                                                        | TEXT tx_hash                       |      |
-|                                                        +------------------------------------+      |
-+----------------------------------------------------------------------------------------------------+
-```
+![Figure 6: Off-Chain SQLite Database Entity-Relationship Model](diagrams/database_er_diagram.png)
 \begin{center}
 \textbf{Figure 6: Off-Chain SQLite Database Entity-Relationship Model}
 \textit{(Diagram source maintained in \texttt{docs/diagrams/database\_er\_diagram.mmd})}
