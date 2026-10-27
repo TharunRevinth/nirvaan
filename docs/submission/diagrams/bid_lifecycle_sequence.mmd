@@ -1,0 +1,49 @@
+sequenceDiagram
+    autonumber
+    actor Vendor as Qualified Vendor
+    participant Client as Frontend (MetaMask)
+    participant Backend as Express Backend Relay
+    participant Blockchain as Sepolia Blockchain (OilTenderingV1)
+    actor Officer as PSU Procurement Officer
+    actor CVC as CVC Vigilance Auditor
+    participant Keeper as Autonomous Keeper
+
+    Note over Vendor,Blockchain: 1. Commit Phase (Sealed Bid)
+    Vendor->>Client: Input Quote & Generate 32-byte Salt
+    Client->>Client: Compute keccak256(Vendor, Amount, Salt, TenderId)
+    Client->>Blockchain: eth_sendTransaction: submitBid(id, cid, commitment) with minEMD
+    Blockchain-->>Client: Emit BidSubmitted
+
+    Note over Keeper,Blockchain: 2. Open Phase (Automated Unsealing)
+    Keeper->>Blockchain: eth_sendTransaction: openBids(tenderId)
+    Blockchain-->>Keeper: Emit BidsOpened (Status = UnderEvaluation)
+
+    Note over Vendor,Blockchain: 3. Reveal Phase (Active Window)
+    Vendor->>Client: Enter Salt & Bid Quote
+    Client->>Blockchain: eth_sendTransaction: revealBid(tenderId, bidIndex, amount, salt)
+    Blockchain->>Blockchain: Assert keccak256 commitment matches
+    Blockchain-->>Client: Emit BidRevealed (Status = Opened)
+
+    Note over Officer,Blockchain: 4. Score Phase (Technical Evaluation)
+    Officer->>Backend: POST /api/tenders/:id/tech-score (JWT)
+    Backend->>Blockchain: eth_sendTransaction: setTechnicalScore (Relayed)
+    Blockchain-->>Backend: Emit TechnicalScoreUpdated
+
+    Note over Officer,Blockchain: 5. Award Phase (On-Chain L1 Enforcement)
+    Officer->>Backend: POST /api/tenders/:id/award (JWT)
+    Backend->>Blockchain: eth_sendTransaction: awardTender (Relayed)
+    Blockchain->>Blockchain: Assert winner is tech-qualified and lowest bid (L1)
+    Blockchain-->>Backend: Emit TenderAwarded (7-day standstill begins)
+
+    Note over Vendor,CVC: 6. Dispute Phase (Standstill Appeal)
+    Vendor->>Blockchain: eth_sendTransaction: disputeTender(id, cid) with 0.01 ETH Bond
+    Blockchain-->>Vendor: Emit TenderDisputed (Status = Disputed)
+    CVC->>Blockchain: eth_sendTransaction: resolveDispute(id, isUpheld, notes)
+    Blockchain-->>CVC: Emit DisputeResolved
+
+    Note over Keeper,Vendor: 7. Finalize & Withdraw Phase (Pull Payment Escrow)
+    Keeper->>Blockchain: eth_sendTransaction: finalizeTender(tenderId)
+    Blockchain->>Blockchain: Credit EMD balances to pendingWithdrawals
+    Blockchain-->>Keeper: Emit TenderFinalized
+    Vendor->>Blockchain: eth_sendTransaction: withdraw()
+    Blockchain-->>Vendor: Native ETH transfer via low-level call

@@ -1,0 +1,65 @@
+graph TD
+    subgraph Roles["Stakeholder Roles"]
+        Vendor["Vendor (Commercial Bidder)"]
+        Officer["PSU Procurement Officer (IOCL / BPCL / ONGC)"]
+        CVC["CVC Vigilance Auditor"]
+        AdminRole["Consortium Admin"]
+        KeeperRole["Autonomous Keeper Bot"]
+    end
+
+    subgraph FrontendHosting["Frontend Layer (Vercel Global CDN)"]
+        UI["React 18 SPA (Vite + Tailwind CSS)"]
+        MM["MetaMask Browser Extension (EIP-1193)"]
+        GIGW["GIGW Accessibility Controls"]
+        UI --- MM
+        UI --- GIGW
+    end
+
+    subgraph BackendHosting["Backend Gateway & Workers (Render Cloud Platform)"]
+        API["Express.js REST API Server (Node.js 22 LTS)"]
+        AuthMid["Officer JWT & Vendor Nonce Auth"]
+        Relay["Gas Relays (tech-score, awardTender)"]
+        Indexer["Adaptive Event Indexer (Alchemy 10-block fallback)"]
+        Keeper["Embedded Keeper Service (openBids, finalizeTender)"]
+        SQLite[("Native SQLite Database (node:sqlite)<br/><i>Rebuilt automatically from on-chain events on boot</i>")]
+
+        API --> AuthMid
+        API --> Relay
+        API --> SQLite
+        Indexer -->|"Indexes on-chain events"| SQLite
+        Keeper -->|"Queries tender deadlines"| SQLite
+    end
+
+    subgraph Monitoring["Operational Uptime"]
+        UptimeRobot["UptimeRobot Synthetic Pinger (5-Min Interval)"]
+    end
+
+    subgraph Storage["Decentralized Storage Layer"]
+        Pinata["Pinata Cloud IPFS Gateway"]
+        IPFSRepo["IPFS Pinning Cluster (Content-Addressed Tenders & Specs)"]
+        Pinata --> IPFSRepo
+    end
+
+    subgraph Blockchain["Consortium & Public Ledger (Ethereum Sepolia Testnet)"]
+        RPC["Alchemy Sepolia JSON-RPC Endpoint"]
+        Proxy["ERC-1967 Transparent Proxy (0xe9649E...8663)"]
+        Impl["OilTenderingV1 Implementation (0xd5451f...6606)"]
+
+        RPC --> Proxy
+        Proxy -->|"delegatecall"| Impl
+    end
+
+    Vendor -->|"Connects wallet & signs txs"| MM
+    Vendor -->|"Browses tenders & submits KYC"| UI
+    Officer -->|"Authenticates via JWT & manages tenders"| UI
+    CVC -->|"Audits timeline & adjudicates disputes"| UI
+    AdminRole -->|"Authorizes UUPS implementation upgrade"| Proxy
+
+    UptimeRobot -->|"GET /api/health pings"| API
+    MM -->|"Signed on-chain transactions (submitBid, revealBid, dispute, withdraw)"| RPC
+    UI -->|"REST API calls (Bearer JWT / challenge nonces)"| API
+    API -->|"Uploads tender notices & specs (Pinata SDK)"| Pinata
+    Relay -->|"Signed officer transactions via server wallet"| RPC
+    Indexer -->|"Filtered log queries (eth_getLogs)"| RPC
+    Keeper -->|"State transition calls (openBids, finalizeTender)"| RPC
+    KeeperRole -.->|"Automated execution"| Keeper
