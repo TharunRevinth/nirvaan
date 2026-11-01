@@ -1,0 +1,148 @@
+erDiagram
+    ON_CHAIN_STATE {
+        uint256 tenderCounter
+        uint256 bidCounter
+        address multisigAdmin
+        address keeperAddress
+        address cvcAuditorAddress
+        address treasuryAddress
+        uint256 disputeBondAmount
+        uint256 defaultMinEMD
+    }
+
+    TENDER_ON_CHAIN {
+        uint256 id PK
+        address psuAddress
+        string ipfsHashDoc
+        uint256 submissionDeadline
+        uint256 openingTime
+        uint256 revealDeadline
+        uint256 appealDeadline
+        uint256 minEMDAmount
+        TenderStatus status
+        address winner
+        uint256 winningBidId
+        uint256 winningBidAmount
+    }
+
+    BID_ON_CHAIN {
+        uint256 id PK
+        uint256 tenderId FK
+        address vendorAddress
+        string encryptedBidIpfsHash
+        bytes32 bidCommitment
+        uint256 submissionTime
+        uint256 bidAmount
+        BidStatus status
+        bool isTechQualified
+        uint256 techScore
+        uint256 emdDeposited
+    }
+
+    DISPUTE_ON_CHAIN {
+        uint256 tenderId FK
+        address challenger
+        string reasonIpfsHash
+        uint256 filedAt
+        uint256 timeoutAt
+        bool isResolved
+        bool isUpheld
+        string cvcReasonIpfsHash
+        uint256 disputeBondDeposited
+    }
+
+    VENDOR_KYC_ON_CHAIN {
+        address vendorAddress PK
+        bytes32 gstinHash
+        bytes32 panHash
+        string kycIpfsHash
+        uint256 registeredAt
+        bool isActive
+    }
+
+    PENDING_WITHDRAWALS {
+        address recipient PK
+        uint256 amountWei
+    }
+
+    BACKEND_SQLITE_OFFICERS {
+        text id PK
+        text username UK
+        text psu
+        text password_hash
+        integer must_change_password
+        text officer_id UK
+        text email
+        text created_at
+    }
+
+    BACKEND_SQLITE_VENDOR_APPLICATIONS {
+        text id PK
+        text wallet_address UK
+        text company_name
+        text gstin
+        text pan
+        text kyc_cid
+        text status
+        text tx_hash
+        text rejection_reason
+        text created_at
+        text updated_at
+    }
+
+    BACKEND_SQLITE_INDEXED_TENDERS {
+        integer on_chain_id PK
+        text code
+        text psu
+        text category
+        text title
+        text description
+        text budget
+        text min_emd_wei
+        text min_emd_eth
+        text submission_deadline
+        text opening_time
+        text reveal_deadline
+        text appeal_deadline
+        text status
+        text cid
+        text tx_hash
+        integer block_number
+        text awarded_to
+        text awarded_amount_eth
+        text award_tx_hash
+        integer award_block_number
+        text appeal_window_ends
+    }
+
+    BACKEND_SQLITE_INDEXED_BIDS {
+        text id PK
+        integer tender_id FK
+        text vendor_address
+        integer bid_index
+        text vendor_name
+        text vid
+        text amount_wei
+        text amount_eth
+        text commitment_hash
+        text cid
+        integer is_qualified
+        integer tech_score
+        text status
+        text submission_time
+        text tx_hash
+    }
+
+    IPFS_STORAGE {
+        string cid PK
+        string fileType
+        string rawDocument
+    }
+
+    TENDER_ON_CHAIN ||--o{ BID_ON_CHAIN : contains
+    TENDER_ON_CHAIN ||--o{ DISPUTE_ON_CHAIN : has
+    TENDER_ON_CHAIN ||--|| IPFS_STORAGE : "spec references cid"
+    BID_ON_CHAIN ||--|| IPFS_STORAGE : "doc references cid"
+    VENDOR_KYC_ON_CHAIN ||--|| IPFS_STORAGE : "kyc references cid"
+    BACKEND_SQLITE_INDEXED_TENDERS ||--o{ BACKEND_SQLITE_INDEXED_BIDS : "caches"
+    BACKEND_SQLITE_VENDOR_APPLICATIONS ||--o| VENDOR_KYC_ON_CHAIN : "approves to on-chain"
