@@ -1,48 +1,44 @@
 graph TD
     subgraph Roles["Stakeholder Roles"]
         Vendor["Vendor (Commercial Bidder)"]
-        Officer["PSU Procurement Officer (IOCL / BPCL / ONGC)"]
+        Officer["PSU Officer (IOCL / BPCL / ONGC)"]
         CVC["CVC Vigilance Auditor"]
-        AdminRole["Consortium Admin"]
+        AdminRole["System Admin (Single Wallet)"]
         KeeperRole["Autonomous Keeper Bot"]
     end
 
-    subgraph FrontendHosting["Frontend Layer (Vercel Global CDN)"]
+    subgraph FrontendHosting["Frontend Layer (Vercel)"]
         UI["React 18 SPA (Vite + Tailwind CSS)"]
-        MM["MetaMask Browser Extension (EIP-1193)"]
-        GIGW["GIGW Accessibility Controls"]
+        MM["MetaMask Wallet (EIP-1193)"]
+        GIGW["GIGW Accessibility Toolbar"]
         UI --- MM
         UI --- GIGW
     end
 
-    subgraph BackendHosting["Backend Gateway & Workers (Render Cloud Platform)"]
-        API["Express.js REST API Server (Node.js 22 LTS)"]
+    subgraph BackendHosting["Backend Gateway & Indexer (Render)"]
+        API["Express.js REST API Server"]
         AuthMid["Officer JWT & Vendor Nonce Auth"]
         Relay["Gas Relays (tech-score, awardTender)"]
-        Indexer["Adaptive Event Indexer (Alchemy 10-block fallback)"]
-        Keeper["Embedded Keeper Service (openBids, finalizeTender)"]
-        SQLite[("Native SQLite Database (node:sqlite)<br/><i>Rebuilt automatically from on-chain events on boot</i>")]
+        Indexer["Event Indexer (10-block batch fallback)"]
+        Keeper["Embedded Keeper (openBids, finalizeTender)"]
+        SQLite[("Native SQLite Database (node:sqlite)<br/><i>Rebuilt from on-chain event logs</i>")]
 
         API --> AuthMid
         API --> Relay
         API --> SQLite
         Indexer -->|"Indexes on-chain events"| SQLite
-        Keeper -->|"Queries tender deadlines"| SQLite
-    end
-
-    subgraph Monitoring["Operational Uptime"]
-        UptimeRobot["UptimeRobot Synthetic Pinger (5-Min Interval)"]
+        Keeper -->|"Checks tender deadlines"| SQLite
     end
 
     subgraph Storage["Decentralized Storage Layer"]
         Pinata["Pinata Cloud IPFS Gateway"]
-        IPFSRepo["IPFS Pinning Cluster (Content-Addressed Tenders & Specs)"]
+        IPFSRepo["IPFS Storage (Tender Notices & Technical Specs)"]
         Pinata --> IPFSRepo
     end
 
-    subgraph Blockchain["Consortium & Public Ledger (Ethereum Sepolia Testnet)"]
+    subgraph Blockchain["Ethereum Sepolia Testnet"]
         RPC["Alchemy Sepolia JSON-RPC Endpoint"]
-        Proxy["ERC-1967 Transparent Proxy (0xe9649E...8663)"]
+        Proxy["ERC-1967 UUPS Proxy (0xe9649E...8663)"]
         Impl["OilTenderingV1 Implementation (0xd5451f...6606)"]
 
         RPC --> Proxy
@@ -51,15 +47,14 @@ graph TD
 
     Vendor -->|"Connects wallet & signs txs"| MM
     Vendor -->|"Browses tenders & submits KYC"| UI
-    Officer -->|"Authenticates via JWT & manages tenders"| UI
-    CVC -->|"Audits timeline & adjudicates disputes"| UI
-    AdminRole -->|"Authorizes UUPS implementation upgrade"| Proxy
+    Officer -->|"Signs in via JWT & manages tenders"| UI
+    CVC -->|"Audits custody & resolves disputes"| UI
+    AdminRole -->|"Authorizes contract upgrades"| Proxy
 
-    UptimeRobot -->|"GET /api/health pings"| API
     MM -->|"Signed on-chain transactions (submitBid, revealBid, dispute, withdraw)"| RPC
-    UI -->|"REST API calls (Bearer JWT / challenge nonces)"| API
+    UI -->|"REST API calls (JWT / challenge nonces)"| API
     API -->|"Uploads tender notices & specs (Pinata SDK)"| Pinata
-    Relay -->|"Signed officer transactions via server wallet"| RPC
-    Indexer -->|"Filtered log queries (eth_getLogs)"| RPC
-    Keeper -->|"State transition calls (openBids, finalizeTender)"| RPC
-    KeeperRole -.->|"Automated execution"| Keeper
+    Relay -->|"Signs officer txs with server wallet"| RPC
+    Indexer -->|"Log queries (eth_getLogs)"| RPC
+    Keeper -->|"State transitions (openBids, finalizeTender)"| RPC
+    KeeperRole -.->|"Scheduled execution"| Keeper
