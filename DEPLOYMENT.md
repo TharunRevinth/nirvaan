@@ -209,6 +209,24 @@ The scanner checks every tracked file in the git tree and halts if any 64-hexade
 
 ---
 
+## Step 7: On-Chain Dispute Bond Management
+
+The deployed `OilTenderingV1` contract defines `disputeBondAmount` (configured at deploy time to `0.01 ETH` on Sepolia to accommodate faucet limits). The frontend dynamically queries `disputeBondAmount()` on-chain at runtime.
+
+If the on-chain dispute bond amount ever needs to be adjusted by the multisig or contract admin, run `scripts/set-dispute-bond.js`:
+
+```bash
+ADMIN_PRIVATE_KEY=0xYourAdminPrivateKey node scripts/set-dispute-bond.js 0.01
+```
+
+The script:
+1. Securely reads `ADMIN_PRIVATE_KEY` (or `PRIVATE_KEY`) from the environment without printing or committing it.
+2. Connects to Sepolia and queries `disputeBondAmount()` on the proxy contract.
+3. If the target amount differs, calls `setDisputeBondAmount(newBondWei)` from the authorized `multisigAdmin` wallet.
+4. Waits for transaction mining and verifies the updated on-chain bond.
+
+---
+
 ## Environment Reference Files
 
 Refer to the service `.env.example` templates for complete reference:

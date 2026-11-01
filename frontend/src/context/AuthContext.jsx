@@ -82,7 +82,6 @@ export function AuthProvider({ children }) {
 
   // Real MetaMask Connection Function
   const connectVendorWallet = async () => {
-    logoutOfficerSession();
     setNetworkError('');
 
     if (!window.ethereum) {
@@ -151,8 +150,6 @@ export function AuthProvider({ children }) {
     if (officerData?.psu) {
       setSelectedPSU(officerData.psu);
     }
-    setWalletAddress('');
-    localStorage.removeItem('vendor_wallet');
     localStorage.setItem('officer_token', token);
     localStorage.setItem('officer_user', JSON.stringify(officerData));
   };
@@ -165,7 +162,6 @@ export function AuthProvider({ children }) {
   };
 
   const activateVendorSession = (address) => {
-    logoutOfficerSession();
     setWalletAddress(address);
     localStorage.setItem('vendor_wallet', address);
   };

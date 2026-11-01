@@ -22,7 +22,7 @@ const BID_STATUS_LABELS = {
 };
 
 export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, tenders = [], setTenders }) {
-  const { officerUser, selectedPSU } = useAuth();
+  const { officerUser, officerToken, selectedPSU } = useAuth();
   const effectivePSU = officerUser?.psu || selectedPSU || propPsu || 'IOCL';
 
   const [searchParams] = useSearchParams();
@@ -111,7 +111,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
 
   // Handle setting real technical score on-chain via backend officer relay
   const handleSetScore = async (bidIndex, qualified, score) => {
-    const token = localStorage.getItem('nirvaan_token');
+    const token = officerToken || localStorage.getItem('officer_token');
     if (!token) {
       triggerToast('PSU Officer authentication required. Please sign in.', 'error');
       return;
@@ -132,16 +132,21 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
         })
       });
 
-      const data = await res.json();
+      let serverData = null;
+      try {
+        serverData = await res.json();
+      } catch (parseErr) {}
+
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to record technical score on-chain');
+        const errorMsg = serverData?.error || serverData?.message || `Failed to record technical score on-chain (HTTP ${res.status})`;
+        throw new Error(errorMsg);
       }
 
-      triggerToast(`Technical score recorded on-chain for Bid #${bidIndex}. Tx: ${data.txHash ? data.txHash.substring(0, 18) + '…' : 'Confirmed'}`, 'success');
+      triggerToast(`Technical score recorded on-chain for Bid #${bidIndex}. Tx: ${serverData?.txHash ? serverData.txHash.substring(0, 18) + '…' : 'Confirmed'}`, 'success');
       await loadOnChainBids();
     } catch (err) {
       console.error('Technical qualification error:', err);
-      triggerToast(`Technical score error: ${decodeContractError(err)}`, 'error');
+      triggerToast(`Technical score error: ${err.message}`, 'error');
     } finally {
       setScoringIndex(null);
     }
@@ -161,7 +166,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
       return;
     }
 
-    const token = localStorage.getItem('nirvaan_token');
+    const token = officerToken || localStorage.getItem('officer_token');
     if (!token) {
       triggerToast('PSU Officer authentication required. Please sign in.', 'error');
       return;
@@ -183,21 +188,26 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
         })
       });
 
-      const data = await res.json();
+      let serverData = null;
+      try {
+        serverData = await res.json();
+      } catch (parseErr) {}
+
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to execute contract award');
+        const errorMsg = serverData?.error || serverData?.message || `Failed to execute contract award (HTTP ${res.status})`;
+        throw new Error(errorMsg);
       }
 
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Tender #${currentTender.onChainId} awarded on-chain to L1 bidder (Block #${data.blockNumber || 'confirmed'}). Tx: ${data.txHash ? data.txHash.substring(0, 18) + '…' : 'Mined'}`, 'success');
+      triggerToast(`Tender #${currentTender.onChainId} awarded on-chain to L1 bidder (Block #${serverData?.blockNumber || 'confirmed'}). Tx: ${serverData?.txHash ? serverData.txHash.substring(0, 18) + '…' : 'Mined'}`, 'success');
 
       await loadOnChainBids();
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);
       console.error('Award execution error:', err);
-      triggerToast(`Award failed: ${decodeContractError(err)}`, 'error');
+      triggerToast(`Award failed: ${err.message}`, 'error');
     }
   };
 

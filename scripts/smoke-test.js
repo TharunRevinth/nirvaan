@@ -364,8 +364,25 @@ async function runSmokeTests() {
     assert(true, `Indexed on-chain bid recorded in database`);
 
     // -------------------------------------------------------------
-    // Test 9: Technical Evaluation & L1 Determination
+    // Test 9: Technical Evaluation & L1 Determination (Requires Officer JWT)
     // -------------------------------------------------------------
+    // Verify unauthenticated tech-score is rejected with 401
+    const unauthScoreRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/tech-score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bidIndex: 0, qualified: true, score: 95 })
+    });
+    assert(unauthScoreRes.status === 401, `Unauthenticated POST /tech-score rejected with 401 Unauthorized`);
+
+    // Verify unauthenticated award is rejected with 401
+    const unauthAwardRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/award`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ winner: testVendorAddress, winningBidAmount: bidAmountEth })
+    });
+    assert(unauthAwardRes.status === 401, `Unauthenticated POST /award rejected with 401 Unauthorized`);
+
+    // Authenticated scoring using only officer JWT
     const scoreRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/tech-score`, {
       method: 'POST',
       headers: {
@@ -378,8 +395,9 @@ async function runSmokeTests() {
         score: 95
       })
     });
-    assert(scoreRes.status === 200, `Technical score evaluation returns 200 OK`);
+    assert(scoreRes.status === 200, `Technical score evaluation with officer JWT returns 200 OK`);
 
+    // Authenticated award using only officer JWT
     const awardRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}/award`, {
       method: 'POST',
       headers: {
@@ -395,9 +413,26 @@ async function runSmokeTests() {
         deliveryTimeline: '12 Months'
       })
     });
-    assert(awardRes.status === 200, `L1 Tender award returns 200 OK`);
+    assert(awardRes.status === 200, `L1 Tender award with officer JWT returns 200 OK`);
     const awardData = await awardRes.json();
     assert(awardData.success === true, `Tender status updated to Awarded with 7-day standstill`);
+
+    // -------------------------------------------------------------
+    // Test 10: Dispute Bond Amount Verification (Matches 0.01 ETH)
+    // -------------------------------------------------------------
+    const addressesPath = path.join(rootDir, 'contracts', 'deploy', 'addresses.json');
+    let expectedBondEth = '0.01';
+    if (fs.existsSync(addressesPath)) {
+      const deployInfo = JSON.parse(fs.readFileSync(addressesPath, 'utf8'));
+      expectedBondEth = deployInfo.disputeBondEth || '0.01';
+      assert(deployInfo.disputeBondEth === '0.01', `Deployed addresses.json specifies disputeBondEth === 0.01 ETH`);
+    }
+
+    // Verify DisputeFiling.jsx uses dynamic runtime bond and does not contain hardcoded "1.0 ETH" or "1 ETH"
+    const disputePagePath = path.join(rootDir, 'frontend', 'src', 'pages', 'DisputeFiling.jsx');
+    const disputePageSrc = fs.readFileSync(disputePagePath, 'utf8');
+    assert(!disputePageSrc.includes('1.0 ETH') && !disputePageSrc.includes('1 ETH'), `DisputeFiling.jsx contains no hardcoded 1.0 ETH or 1 ETH bond values`);
+    assert(disputePageSrc.includes('disputeBondAmount'), `DisputeFiling.jsx reads disputeBondAmount from contract dynamically`);
 
     console.log(`\n===============================================================`);
     console.log(`  ALL ${total} SMOKE TESTS PASSED CLEANLY (${passed}/${total})`);

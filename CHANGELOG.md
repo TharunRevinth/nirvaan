@@ -323,6 +323,28 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Officer Session Isolation & Dynamic Dispute Bond Fixes (`frontend/`, `scripts/`)
+
+1. **Officer Authentication on Bid Evaluation Console (`EvaluationAward.jsx`, `AuthContext.jsx`)**:
+   - Fixed bug where `EvaluationAward.jsx` attempted to read the officer JWT from legacy `nirvaan_token` instead of `officerToken` / `officer_token`.
+   - Updated `handleSetScore` and `handleAwardConfirm` to read `officerToken` from `useAuth()` (fallback to `localStorage.getItem('officer_token')`) and send `'Authorization': \`Bearer ${token}\``.
+   - Updated `AuthContext.jsx` so that connecting a MetaMask wallet (`connectVendorWallet`) does not clear or wipe out an active officer session (`logoutOfficerSession`). Officer and vendor roles now operate independently in the same browser without mutual state collisions.
+   - Refactored error handling in `EvaluationAward.jsx` to parse and display real server error messages from the backend relay directly in toast notifications.
+   - Added smoke test checks in `scripts/smoke-test.js` verifying that `/tech-score` and `/award` reject unauthenticated calls with 401 Unauthorized, and succeed with 200 OK when authenticated with the officer JWT.
+
+2. **Dynamic On-Chain Dispute Bond Resolution (`DisputeFiling.jsx`, `CVCResolution.jsx`, `scripts/set-dispute-bond.js`)**:
+   - Verified that the Sepolia proxy's on-chain `disputeBondAmount` is configured to `0.01 ETH` (10,000,000,000,000,000 Wei).
+   - Removed all hardcoded `"1.0 ETH"` and `"1 ETH"` references from `DisputeFiling.jsx` and `CVCResolution.jsx`.
+   - Updated `DisputeFiling.jsx` to dynamically query `disputeBondAmount()` on-chain from the contract at runtime via RPC provider/wallet, utilizing this exact value for both UI display and transaction `msg.value`.
+   - Enhanced the dispute page to clearly display:
+     - Dynamic required dispute bond amount (`0.01 ETH`).
+     - Detailed refund and forfeiture terms (refunded to challenger wallet if upheld or timed out after 14 days; forfeited to treasury if dismissed).
+     - Formatted appeal deadline and current standstill status for the selected tender.
+   - Added `scripts/set-dispute-bond.js` allowing the multisig admin to update the on-chain dispute bond amount securely via `ADMIN_PRIVATE_KEY` without logging private keys. Documented in `DEPLOYMENT.md`.
+   - Added automated smoke test checks in `scripts/smoke-test.js` verifying that the deployed `addresses.json` specifies `0.01 ETH` dispute bond and that `DisputeFiling.jsx` contains no hardcoded 1.0 ETH strings.
+
+---
+
 ## Items Blocked or Incomplete
 
 *None*. Every item specified in the requirements across all phases has been completed, tested, and verified.

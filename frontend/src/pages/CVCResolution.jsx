@@ -113,7 +113,7 @@ export default function CVCResolution({ triggerToast, tenders = [] }) {
           </div>
           <div className="flex justify-between border-b border-[#E8E6E1] pb-2">
             <span className="text-[#71716D]">Dispute Bond in Escrow:</span>
-            <span className="font-semibold text-amber-900">{disputeData?.bondEth ? `${disputeData.bondEth} ETH` : '1.0 ETH'}</span>
+            <span className="font-semibold text-amber-900">{disputeData?.bondEth ? `${disputeData.bondEth} ETH` : '0.01 ETH'}</span>
           </div>
           <div className="flex justify-between border-b border-[#E8E6E1] pb-2">
             <span className="text-[#71716D]">Evidence IPFS CID:</span>

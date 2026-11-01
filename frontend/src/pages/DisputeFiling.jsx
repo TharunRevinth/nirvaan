@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
-import { CONTRACT_ADDRESS } from '../config';
+import { CONTRACT_ADDRESS, RPC_URL } from '../config';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
 import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
@@ -16,10 +16,56 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Dynamic on-chain dispute bond state (read from contract at runtime)
+  const [bondEth, setBondEth] = useState('0.01');
+  const [bondWei, setBondWei] = useState(ethers.parseEther('0.01'));
+  const [loadingBond, setLoadingBond] = useState(true);
+
+  // Read disputeBondAmount dynamically from on-chain contract
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDisputeBond() {
+      if (!CONTRACT_ADDRESS) return;
+      try {
+        const provider = window.ethereum
+          ? new ethers.BrowserProvider(window.ethereum)
+          : new ethers.JsonRpcProvider(RPC_URL, undefined, { staticNetwork: true });
+        const abi = ["function disputeBondAmount() external view returns (uint256)"];
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, provider);
+        const bond = await contract.disputeBondAmount();
+        if (isMounted) {
+          setBondWei(bond);
+          setBondEth(ethers.formatEther(bond));
+          setLoadingBond(false);
+        }
+      } catch (err) {
+        console.warn('Could not read disputeBondAmount from on-chain contract:', err.message);
+        if (isMounted) setLoadingBond(false);
+      }
+    }
+    loadDisputeBond();
+    return () => { isMounted = false; };
+  }, []);
+
   const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
+  const isAwarded = currentTender?.status === 'Awarded' || currentTender?.status === 'AWARDED';
 
   const winningVendorAddress = currentTender?.winnerAddress || '';
   const isWinningVendor = walletAddress && winningVendorAddress && walletAddress.toLowerCase() === winningVendorAddress.toLowerCase();
+
+  const formatAppealDeadline = (t) => {
+    if (!t) return 'Not available';
+    if (!t.appealDeadline) {
+      return isAwarded 
+        ? '7-Day Standstill Window Active' 
+        : 'Standstill not active (Tender not yet awarded)';
+    }
+    const val = t.appealDeadline;
+    const d = typeof val === 'number' && val < 10000000000 
+      ? new Date(val * 1000) 
+      : new Date(val);
+    return isNaN(d.getTime()) ? 'Not set' : d.toLocaleString();
+  };
 
   const handlePreSubmitValidation = () => {
     if (!walletAddress) {
@@ -78,7 +124,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
       const ipfsResult = await uploadDocumentToIpfs(fileToUpload);
       const realCid = ipfsResult.hash;
 
-      // 2. Execute on-chain disputeTender with the real IPFS CID and dispute bond
+      // 2. Execute on-chain disputeTender with the real IPFS CID and dynamically read dispute bond
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const abi = [
@@ -87,17 +133,19 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
       ];
       const contract = new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
 
-      let bondWei = ethers.parseEther("0.01");
+      let requiredBond = bondWei;
       try {
-        bondWei = await contract.disputeBondAmount();
+        requiredBond = await contract.disputeBondAmount();
+        setBondWei(requiredBond);
+        setBondEth(ethers.formatEther(requiredBond));
       } catch (bondErr) {
-        console.warn('Could not read disputeBondAmount, falling back to 0.01 ETH:', bondErr);
+        console.warn('Could not re-read disputeBondAmount, using loaded state:', bondErr.message);
       }
 
       const tx = await contract.disputeTender(
         Number(currentTender.onChainId),
         realCid,
-        { value: bondWei }
+        { value: requiredBond }
       );
 
       triggerToast(`Dispute transaction submitted: ${tx.hash.substring(0, 18)}…`, 'info');
@@ -105,7 +153,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
 
       setIsSubmitting(false);
       setModalOpen(false);
-      triggerToast(`Dispute filed on-chain for Tender #${currentTender.onChainId}. ${ethers.formatEther(bondWei)} ETH bond locked in escrow (Block #${receipt.blockNumber}). Evidence CID: ${realCid}`, 'success');
+      triggerToast(`Dispute filed on-chain for Tender #${currentTender.onChainId}. ${ethers.formatEther(requiredBond)} ETH bond locked in escrow (Block #${receipt.blockNumber}). Evidence CID: ${realCid}`, 'success');
     } catch (err) {
       setIsSubmitting(false);
       setModalOpen(false);
@@ -130,11 +178,17 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
           </p>
         </div>
 
-        <div className="text-left sm:text-right font-mono text-xs tabular-nums">
-          <span className="text-[#71716D] block">Appeal Window:</span>
-          <span className={`font-semibold ${currentTender?.appealWindowClosed ? 'text-red-700' : 'text-emerald-700'}`}>
-            {currentTender?.appealWindowClosed ? 'Closed (Expired)' : 'Open For Dispute'}
-          </span>
+        <div className="text-left sm:text-right font-mono text-xs tabular-nums space-y-0.5">
+          <div>
+            <span className="text-[#71716D]">Appeal Status: </span>
+            <span className={`font-semibold ${currentTender?.appealWindowClosed ? 'text-red-700' : isAwarded ? 'text-emerald-700' : 'text-amber-800'}`}>
+              {currentTender?.appealWindowClosed ? 'Closed (Expired)' : isAwarded ? 'Open For Dispute' : 'Pending Tender Award'}
+            </span>
+          </div>
+          <div>
+            <span className="text-[#71716D]">Appeal Deadline: </span>
+            <span className="font-semibold text-[#1A1A18]">{formatAppealDeadline(currentTender)}</span>
+          </div>
         </div>
       </div>
 
@@ -145,13 +199,28 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
       )}
 
       {/* Escrow Mechanism Note */}
-      <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-4 text-xs space-y-1">
-        <h3 className="font-semibold text-[#1A1A18] text-xs">
-          Dispute Escrow Smart Contract Mechanism
-        </h3>
+      <div className="bg-[#FAFAF9] border border-[#E8E6E1] rounded-xl p-4 text-xs space-y-2">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+          <h3 className="font-semibold text-[#1A1A18] text-xs">
+            Dispute Escrow Smart Contract Mechanism
+          </h3>
+          <span className="font-mono text-xs font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+            Required Dispute Bond: {loadingBond ? 'Loading…' : `${bondEth} ETH`}
+          </span>
+        </div>
         <p className="text-[#575753] leading-relaxed">
-          Filing a dispute triggers a standstill hold on tender finalization on the blockchain. A refundable Dispute Bond of 1.0 ETH is locked in escrow during CVC auditor review. If the dispute is upheld, the bond is refunded. If dismissed, it is forfeited to the consortium treasury.
+          Filing a dispute triggers an immediate standstill hold on tender finalization on the blockchain. A refundable Dispute Bond of <strong className="text-amber-900 font-mono">{loadingBond ? '...' : `${bondEth} ETH`}</strong> is locked in smart contract escrow during Central Vigilance Commission (CVC) review.
         </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 border-t border-[#E8E6E1]">
+          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950">
+            <span className="font-bold block text-[11px] uppercase tracking-wider text-emerald-900">Bond Refund Terms</span>
+            <span className="text-[11px] leading-snug block">Refunded in full to the challenger wallet via pull payment if the dispute is upheld by the CVC Auditor or if the CVC resolution times out after 14 days.</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-950">
+            <span className="font-bold block text-[11px] uppercase tracking-wider text-rose-900">Bond Forfeiture Terms</span>
+            <span className="text-[11px] leading-snug block">Forfeited and permanently transferred to the government treasury if the dispute is formally dismissed by the CVC Auditor.</span>
+          </div>
+        </div>
       </div>
 
       {/* Dispute Form */}
@@ -227,7 +296,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
 
         <div className="border-t border-[#E8E6E1] pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="text-xs font-mono">
-            Required Escrow Bond: <strong className="text-amber-900">1.0 ETH</strong>
+            Required Escrow Bond: <strong className="text-amber-900">{loadingBond ? 'Loading…' : `${bondEth} ETH`}</strong>
           </div>
 
           <button
@@ -236,7 +305,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
             onClick={handlePreSubmitValidation}
             className="w-full sm:w-auto bg-[#A13D2B] hover:bg-[#8A3323] disabled:bg-[#A8A7A1] text-white font-semibold text-xs px-6 py-2.5 rounded-lg transition-colors cursor-pointer"
           >
-            Review &amp; Lock 1.0 ETH Dispute Bond →
+            Review &amp; Lock {bondEth} ETH Dispute Bond →
           </button>
         </div>
       </div>
@@ -244,7 +313,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
       <ConfirmationModal
         isOpen={modalOpen}
         title="Confirm Dispute Filing & Escrow Deposit"
-        message={`Upload evidence to IPFS and lock 1.0 ETH dispute bond in smart contract escrow for Tender #${currentTender?.onChainId}? This triggers a formal CVC investigation.`}
+        message={`Upload evidence to IPFS and lock ${bondEth} ETH dispute bond in smart contract escrow for Tender #${currentTender?.onChainId}? This triggers a formal CVC investigation.`}
         onConfirm={handleSubmit}
         onCancel={() => setModalOpen(false)}
         isSubmitting={isSubmitting}
