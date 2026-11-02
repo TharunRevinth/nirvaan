@@ -97,7 +97,10 @@ const usedTempTokens = new Set();
 // -----------------------------------------------------------------------
 // BLOCKCHAIN SIGNING RELAY SETUP & EVENT INDEXER
 // -----------------------------------------------------------------------
-const provider = new ethers.JsonRpcProvider(RPC_URL);
+// Static network: skips repeated eth_chainId detection calls (saves RPC quota on Alchemy etc.)
+const CHAIN_ID_NUM = parseInt(process.env.CHAIN_ID || '11155111', 10);
+const staticNet = ethers.Network.from(CHAIN_ID_NUM);
+const provider = new ethers.JsonRpcProvider(RPC_URL, staticNet, { staticNetwork: staticNet });
 const serverWallet = new ethers.Wallet(SERVER_PRIVATE_KEY, provider);
 
 const CONTRACT_ABI = [
@@ -1622,13 +1625,12 @@ async function startServer() {
       pollIntervalSeconds: parseInt(process.env.KEEPER_POLL_INTERVAL_S || '20', 10)
     });
 
-    // 4. Background indexer sync every 20 seconds (configurable via INDEXER_POLL_INTERVAL_S)
-    const indexerIntervalMs = parseInt(process.env.INDEXER_POLL_INTERVAL_S || '20', 10) * 1000;
+    // 4. Background indexer sync every 20 seconds
     setInterval(() => {
       indexer.syncFromChain().catch(err => {
         console.warn('[INDEXER BACKGROUND SYNC NOTICE]:', err.message);
       });
-    }, indexerIntervalMs);
+    }, 20000);
 
     // 5. Start Express HTTP service
     const server = app.listen(PORT, () => {

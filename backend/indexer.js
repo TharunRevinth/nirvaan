@@ -58,16 +58,15 @@ export function parseRangeTooLargeError(err) {
   const rawMsg = getFullErrorMessage(err);
   const msg = rawMsg.toLowerCase();
 
-  // Early return null on HTTP 429 / compute units / rate-limit errors
-  // Prevents misclassifying rate limits as range errors when RPC payload (fromBlock/toBlock) is embedded
+  // Rate limits (HTTP 429 / CUPS) are NOT range errors. Ethers embeds the request payload
+  // ("fromBlock"/"toBlock") in the error text, which would otherwise trip the heuristics below
+  // and permanently shrink the batch size.
   if (
     msg.includes('429') ||
-    msg.includes('rate limit') ||
     msg.includes('compute units') ||
-    msg.includes('too many requests') ||
-    msg.includes('exceeded its compute units') ||
     msg.includes('throughput') ||
-    msg.includes('capacity')
+    msg.includes('too many requests') ||
+    msg.includes('rate limit')
   ) {
     return null;
   }
@@ -217,16 +216,12 @@ export class EventIndexer {
 
         // Transient errors (rate limits 429, timeouts, connection drop)
         attempt++;
-        const fullErrMsg = getFullErrorMessage(err);
-        const lowerErrMsg = fullErrMsg.toLowerCase();
-        const isRateLimit =
-          lowerErrMsg.includes('429') ||
-          lowerErrMsg.includes('rate limit') ||
-          lowerErrMsg.includes('compute units') ||
-          lowerErrMsg.includes('too many requests') ||
-          lowerErrMsg.includes('capacity') ||
-          lowerErrMsg.includes('exceeded') ||
-          lowerErrMsg.includes('limit');
+        const isRateLimit = err.message && (
+          err.message.includes('429') ||
+          err.message.toLowerCase().includes('rate limit') ||
+          err.message.toLowerCase().includes('exceeded') ||
+          err.message.toLowerCase().includes('limit')
+        );
 
         if (attempt >= maxTransientRetries) {
           throw err;
@@ -234,7 +229,7 @@ export class EventIndexer {
 
         const delayMs = process.env.NODE_ENV === 'test' ? 5 : ((isRateLimit ? 1000 : 500) * Math.pow(2, attempt - 1));
         console.warn(
-          `[INDEXER RPC] Error fetching logs [${fromBlock}-${toBlock}]: ${fullErrMsg || err.message}. ` +
+          `[INDEXER RPC] Error fetching logs [${fromBlock}-${toBlock}]: ${err.message}. ` +
           `Retrying in ${delayMs}ms (attempt ${attempt}/${maxTransientRetries})...`
         );
         await new Promise(res => setTimeout(res, delayMs));
@@ -286,14 +281,6 @@ export class EventIndexer {
 
         this.setLastIndexedBlock(endBlock);
         chunkStart = endBlock + 1;
-
-        // Throttle backfill chunks to respect provider compute units per second (CUPS)
-        if (chunkStart <= currentBlock && process.env.NODE_ENV !== 'test') {
-          const chunkDelayMs = parseInt(process.env.INDEXER_CHUNK_DELAY_MS || '100', 10);
-          if (chunkDelayMs > 0) {
-            await new Promise(res => setTimeout(res, chunkDelayMs));
-          }
-        }
       }
 
       this.lastError = null;
