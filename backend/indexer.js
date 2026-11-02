@@ -281,6 +281,14 @@ export class EventIndexer {
 
         this.setLastIndexedBlock(endBlock);
         chunkStart = endBlock + 1;
+
+        // Throttle backfill chunks to respect provider CUPS limits
+        if (chunkStart <= currentBlock && process.env.NODE_ENV !== 'test') {
+          const chunkDelayMs = parseInt(process.env.INDEXER_CHUNK_DELAY_MS || '100', 10);
+          if (chunkDelayMs > 0) {
+            await new Promise(res => setTimeout(res, chunkDelayMs));
+          }
+        }
       }
 
       this.lastError = null;
