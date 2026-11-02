@@ -1622,12 +1622,13 @@ async function startServer() {
       pollIntervalSeconds: parseInt(process.env.KEEPER_POLL_INTERVAL_S || '20', 10)
     });
 
-    // 4. Background indexer sync every 20 seconds
+    // 4. Background indexer sync every 20 seconds (configurable via INDEXER_POLL_INTERVAL_S)
+    const indexerIntervalMs = parseInt(process.env.INDEXER_POLL_INTERVAL_S || '20', 10) * 1000;
     setInterval(() => {
       indexer.syncFromChain().catch(err => {
         console.warn('[INDEXER BACKGROUND SYNC NOTICE]:', err.message);
       });
-    }, 20000);
+    }, indexerIntervalMs);
 
     // 5. Start Express HTTP service
     const server = app.listen(PORT, () => {
