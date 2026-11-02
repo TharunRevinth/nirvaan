@@ -7,14 +7,14 @@ export { CONTRACT_ADDRESS, CHAIN_ID_HEX as REQUIRED_CHAIN_ID_HEX };
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [walletAddress, setWalletAddress] = useState(() => localStorage.getItem('vendor_wallet') || '');
+  const [walletAddress, setWalletAddress] = useState(() => (typeof localStorage !== 'undefined' ? localStorage.getItem('vendor_wallet') : null) || '');
   const [networkError, setNetworkError] = useState('');
   const [registeredVendors, setRegisteredVendors] = useState({});
 
   // PSU Officer State (JWT-Based)
-  const [officerToken, setOfficerToken] = useState(() => localStorage.getItem('officer_token') || '');
+  const [officerToken, setOfficerToken] = useState(() => (typeof localStorage !== 'undefined' ? localStorage.getItem('officer_token') : null) || '');
   const [officerUser, setOfficerUser] = useState(() => {
-    const saved = localStorage.getItem('officer_user');
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('officer_user') : null;
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -199,5 +199,6 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  return context || {};
 }

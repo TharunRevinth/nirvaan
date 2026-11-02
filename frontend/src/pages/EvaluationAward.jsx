@@ -4,6 +4,7 @@ import { ethers } from 'ethers';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS, RPC_URL, API_URL } from '../config';
+import { normalizeTenderStatus } from '../utils/tenderUtils';
 import { ensureCorrectChain, decodeContractError } from '../utils/chain';
 
 const CONTRACT_ABI = [
@@ -45,7 +46,7 @@ export default function EvaluationAward({ triggerToast, selectedPSU: propPsu, te
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoringIndex, setScoringIndex] = useState(null);
 
-  const isAwarded = currentTender?.status === 'Awarded' || currentTender?.status === 'AWARDED';
+  const isAwarded = normalizeTenderStatus(currentTender?.status) === 'awarded';
 
   // Read REAL bids from contract on-chain
   const loadOnChainBids = async () => {

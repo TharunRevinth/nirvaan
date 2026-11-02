@@ -36,7 +36,7 @@ export default function Sidebar() {
 
   const publicLinks = [
     { label: 'Public Tender Register', path: '/tenders' },
-    { label: 'About Consortium Platform', path: '/about' },
+    { label: 'About Platform', path: '/about' },
   ];
 
   const activeLinks = isOfficer ? psuLinks : isVendor ? vendorLinks : publicLinks;
@@ -80,7 +80,7 @@ export default function Sidebar() {
               ? `${selectedPSU} Procurement Cell` 
               : isVendor 
               ? 'Registered Supplier Entity' 
-              : 'Consortium E-Procurement'}
+              : 'Public E-Procurement'}
           </h2>
           <p className="font-mono text-[11px] text-[#71716D] mt-1 tabular-nums truncate">
             {isOfficer 
@@ -157,7 +157,7 @@ export default function Sidebar() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
             <span>CVC Directives Compliant</span>
           </div>
-          <p className="leading-relaxed">Consortium Helpdesk: 1800-11-2024</p>
+          <p className="leading-relaxed">Procurement Helpdesk: 1800-11-2024</p>
           <p className="font-mono text-[10px] mt-0.5 text-[#71716D] tabular-nums">Ethereum Sepolia • Chain #11155111</p>
         </div>
       </aside>

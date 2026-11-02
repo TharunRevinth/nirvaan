@@ -417,6 +417,16 @@ async function runSmokeTests() {
     const awardData = await awardRes.json();
     assert(awardData.success === true, `Tender status updated to Awarded with 7-day standstill`);
 
+    // Verify GET /api/tenders/:id returns Awarded status with all award metadata fields
+    const awardedTenderRes = await fetch(`${API_URL}/api/tenders/${tenderOnChainId}`);
+    assert(awardedTenderRes.status === 200, `GET /api/tenders/:id for awarded tender returns 200 OK`);
+    const awardedTenderPayload = await awardedTenderRes.json();
+    const awardedTender = awardedTenderPayload.tender;
+    assert(awardedTender.status === 'Awarded', `Backend API returns title-cased status "Awarded"`);
+    assert(Boolean(awardedTender.winnerAddress), `Backend returns winnerAddress for awarded tender`);
+    assert(Boolean(awardedTender.winningAmount), `Backend returns winningAmount for awarded tender`);
+    assert(Boolean(awardedTender.appealDeadline), `Backend returns ISO appealDeadline for awarded tender`);
+
     // -------------------------------------------------------------
     // Test 10: Dispute Bond Amount Verification (Matches 0.01 ETH)
     // -------------------------------------------------------------
@@ -433,6 +443,15 @@ async function runSmokeTests() {
     const disputePageSrc = fs.readFileSync(disputePagePath, 'utf8');
     assert(!disputePageSrc.includes('1.0 ETH') && !disputePageSrc.includes('1 ETH'), `DisputeFiling.jsx contains no hardcoded 1.0 ETH or 1 ETH bond values`);
     assert(disputePageSrc.includes('disputeBondAmount'), `DisputeFiling.jsx reads disputeBondAmount from contract dynamically`);
+
+    // Verify leftover legacy terminology elimination
+    const timelinePath = path.join(rootDir, 'frontend', 'src', 'components', 'ChainOfCustodyTimeline.jsx');
+    const timelineSrc = fs.readFileSync(timelinePath, 'utf8');
+    assert(!timelineSrc.includes('Consensus Trail'), `ChainOfCustodyTimeline.jsx contains no leftover "Consensus Trail"`);
+
+    const sidebarPath = path.join(rootDir, 'frontend', 'src', 'components', 'Sidebar.jsx');
+    const sidebarSrc = fs.readFileSync(sidebarPath, 'utf8');
+    assert(!sidebarSrc.includes('Consortium Helpdesk') && !sidebarSrc.includes('Consortium E-Procurement'), `Sidebar.jsx contains no leftover "Consortium" text`);
 
     console.log(`\n===============================================================`);
     console.log(`  ALL ${total} SMOKE TESTS PASSED CLEANLY (${passed}/${total})`);

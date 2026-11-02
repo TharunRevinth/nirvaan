@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { isTenderDeadlineOver } from '../utils/tenderUtils';
+import { isTenderDeadlineOver, normalizeTenderStatus, isPostAward } from '../utils/tenderUtils';
 
 export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelectedPSU }) {
   const { officerUser, walletAddress, selectedPSU } = useAuth();
@@ -21,15 +21,16 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
     const matchPSU = isOfficer ? t.psu === officerPSU : (localPsuFilter === 'ALL' || t.psu === localPsuFilter);
     const matchCat = categoryFilter === 'ALL' || t.category === categoryFilter;
     
+    const s = normalizeTenderStatus(t.status);
     let matchStatus = true;
     if (statusFilter === 'OPEN') {
-      matchStatus = t.status === 'OPEN' && !isDeadlineOver;
+      matchStatus = (s === 'open' || s === 'created') && !isDeadlineOver;
     } else if (statusFilter === 'EVALUATION') {
-      matchStatus = isDeadlineOver && t.status !== 'AWARDED';
+      matchStatus = isDeadlineOver && !isPostAward(t);
     } else if (statusFilter === 'CLOSING SOON') {
-      matchStatus = t.status === 'CLOSING SOON';
+      matchStatus = s === 'closing soon';
     } else if (statusFilter === 'AWARDED') {
-      matchStatus = t.status === 'AWARDED';
+      matchStatus = isPostAward(t);
     }
 
     const matchSearch = t.id.toLowerCase().includes(search.toLowerCase()) || 
@@ -178,7 +179,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                       <td className="p-3.5">
                         <div className="font-semibold text-[#1A1A18] flex items-center gap-2">
                           <span>{t.title}</span>
-                          {t.status === 'AWARDED' ? (
+                          {isPostAward(t) ? (
                             <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-mono font-semibold">
                               AWARDED
                             </span>
@@ -200,7 +201,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                       </td>
                       <td className="p-3.5 font-mono font-semibold text-right text-[#1A1A18] tabular-nums">{t.valueCr}</td>
                       <td className="p-3.5 font-mono tabular-nums">
-                        {t.status === 'AWARDED' ? (
+                        {isPostAward(t) ? (
                           <span className="font-semibold text-emerald-800 flex items-center gap-1.5 text-[11px]">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                             <span>Awarded (Standstill)</span>
@@ -233,9 +234,9 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                                 to={`/tenders/${t.id}`}
                                 className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
                               >
-                                {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                                {isPostAward(t) ? 'Award Details →' : 'Details'}
                               </Link>
-                              {t.status !== 'AWARDED' && (
+                              {!isPostAward(t) && (
                                 <Link
                                   to={`/psu/evaluation?tender=${t.id}`}
                                   className="bg-[#1A1A18] hover:bg-black text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
@@ -249,14 +250,14 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                               <Link
                                 to={`/tenders/${t.id}`}
                                 className={`px-3 py-1.5 rounded-md font-semibold text-[11px] transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                                  t.status === 'AWARDED'
+                                  isPostAward(t)
                                     ? 'border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 focus-visible:ring-emerald-600'
                                     : 'border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] focus-visible:ring-[#A13D2B]'
                                 }`}
                               >
-                                {t.status === 'AWARDED' ? 'Award Details →' : 'Details'}
+                                {isPostAward(t) ? 'Award Details →' : 'Details'}
                               </Link>
-                              {t.status !== 'AWARDED' && !isDeadlineOver && !t.isExpired && (
+                              {!isPostAward(t) && !isDeadlineOver && !t.isExpired && (
                                 <Link
                                   to="/vendor/submit-bid"
                                   className="bg-[#A13D2B] hover:bg-[#8A3323] text-white px-2.5 py-1 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
@@ -264,7 +265,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                                   Bid
                                 </Link>
                               )}
-                              {t.status !== 'AWARDED' && (isDeadlineOver || t.isExpired) && (
+                              {!isPostAward(t) && (isDeadlineOver || t.isExpired) && (
                                 <span className="border border-[#E8E6E1] bg-[#F5F4F0] text-[#71716D] px-2 py-1 rounded text-[11px] font-mono font-medium">
                                   Closed
                                 </span>
@@ -276,7 +277,7 @@ export default function TenderBrowse({ tenders, selectedPSU: propPsu, setSelecte
                               to={`/tenders/${t.id}`}
                               className="border border-[#E8E6E1] bg-white text-[#575753] hover:text-[#1A1A18] hover:bg-[#F5F4F0] px-3 py-1.5 rounded-md font-medium text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-[#A13D2B] focus-visible:outline-none"
                             >
-                              {t.status === 'AWARDED' ? 'Award Details →' : 'View Details'}
+                              {isPostAward(t) ? 'Award Details →' : 'View Details'}
                             </Link>
                           )}
                         </div>

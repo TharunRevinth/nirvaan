@@ -3,10 +3,11 @@ import { ethers } from 'ethers';
 import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS } from '../config';
 import { ensureCorrectChain } from '../utils/chain';
+import { normalizeTenderStatus } from '../utils/tenderUtils';
 
 export default function CVCResolution({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
-  const disputedTenders = tenders.filter(t => t.status === 'Disputed' || t.status === 'DISPUTED');
+  const disputedTenders = tenders.filter(t => normalizeTenderStatus(t.status) === 'disputed');
   const [selectedTenderId, setSelectedTenderId] = useState(disputedTenders[0]?.onChainId || 1);
   const [disputeData, setDisputeData] = useState(null);
   const [loadingDispute, setLoadingDispute] = useState(false);

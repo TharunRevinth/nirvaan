@@ -345,6 +345,40 @@ This document chronicles all architectural, security, smart contract, backend pe
 
 ---
 
+## Frontend Tender Award Display, Real-Time Sync & Terminology Normalization (`frontend/`, `scripts/`)
+
+1. **Normalized Tender Lifecycle Status Resolution (`tenderUtils.js`, `TenderDetail.jsx`, `ChainOfCustodyTimeline.jsx`, `TenderBrowse.jsx`)**:
+   - Created centralized helper `normalizeTenderStatus` along with `isTenderAwarded`, `isPostAward`, `isPreAward`, and `formatBlockNumber` in `frontend/src/utils/tenderUtils.js`.
+   - Replaced fragile, case-sensitive string checks (`tender.status === 'AWARDED'`) with case-insensitive normalization to match canonical API and contract status strings (`"Awarded"`, `"UnderEvaluation"`, `"Created"`, `"Disputed"`, `"DisputeResolved"`, `"Finalized"`, `"Cancelled"`).
+   - Fixed `TenderBrowse.jsx` to filter and render awards and evaluation badges accurately regardless of status casing.
+
+2. **Field Alignment & Timeline Award Step Completion (`ChainOfCustodyTimeline.jsx`, `TenderDetail.jsx`)**:
+   - Aligned timeline fields directly to backend API outputs: `awardTxHash`, `awardBlock` (handled cleanly as either `"Block #12045830"` or numeric `12045830` without duplicate `"Block #Block #"` formatting), `winnerAddress`, `winner`, `winningAmount`, and `appealDeadline`.
+   - Updated Stage 4 ("L1 Award & Standstill") in `ChainOfCustodyTimeline.jsx` to mark the stage `completed` upon tender award and display the winning entity, commercial quote (ETH), award block, and clickable Sepolia Etherscan transaction link.
+
+3. **Stale Data Resolution & Focus Refetching (`TenderDetail.jsx`)**:
+   - Implemented real-time synchronization in `TenderDetail.jsx`: refetches canonical tender specifications on initial route mount and on browser window `focus` events (`window.addEventListener('focus')`) directly from `/api/tenders/:id` and `/api/tenders`.
+   - Eliminates stale tender views caused by caching the initial tender list at login.
+
+4. **Dynamic Dispute & Standstill Window Calculation (`TenderDetail.jsx`)**:
+   - Computes whether the appeal window is `"Open"` or `"Closed"` dynamically by evaluating the real ISO `appealDeadline` against the current timestamp.
+   - For `Awarded` tenders, displays the active 7-day standstill status, exact formatted appeal deadline, and computed open/closed state.
+   - Displays `"Not applicable"` strictly for pre-award tenders (`Created`, `UnderEvaluation`).
+   - Gracefully handles post-award states (`Disputed`, `DisputeResolved`, `Finalized`, `Cancelled`) without falling back to `"Not applicable"`.
+
+5. **Legacy Terminology Sanitization (`ChainOfCustodyTimeline.jsx`, `Sidebar.jsx`, `TenderDetail.jsx`)**:
+   - Replaced leftover `"Consensus Trail • Ethereum Sepolia"` with `"Audit Trail • Ethereum Sepolia"` in `ChainOfCustodyTimeline.jsx`.
+   - Removed legacy `"Consortium"` text from `Sidebar.jsx` (updated to `"About Platform"`, `"Public E-Procurement"`, and `"Procurement Helpdesk: 1800-11-2024"`).
+   - Removed `"consortium registry"` text from `TenderDetail.jsx` fallback view.
+
+6. **Automated Frontend Fixture Testing (`scripts/test-frontend-fixture.js`, `scripts/smoke-test.js`)**:
+   - Added standalone frontend component fixture test suite (`scripts/test-frontend-fixture.js`) using Node SSR (`renderToString`) to render `TenderDetail`, `ChainOfCustodyTimeline`, and `Sidebar` with the exact backend API payload for Tender 11 (`status: "Awarded"`).
+   - Asserts display of the L1 award step, winner name, winning quote, award block, Etherscan link, real appeal deadline, computed open state, and absence of stale fallback text and legacy terminology.
+   - Added `"test:frontend"` script to root `package.json` and integrated into the global `npm test` pipeline.
+   - Enhanced `scripts/smoke-test.js` to assert that GET `/api/tenders/:id` returns canonical title-cased `status: "Awarded"` with all award metadata fields, and verifies zero leftover legacy terminology across frontend components.
+
+---
+
 ## Items Blocked or Incomplete
 
 *None*. Every item specified in the requirements across all phases has been completed, tested, and verified.

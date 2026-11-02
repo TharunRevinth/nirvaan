@@ -1,22 +1,5 @@
 import React from 'react';
-
-function formatDate(dateVal) {
-  if (!dateVal) return 'Pending';
-  try {
-    const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return String(dateVal);
-    return d.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZoneName: 'short'
-    });
-  } catch (e) {
-    return String(dateVal);
-  }
-}
+import { normalizeTenderStatus, formatBlockNumber, formatTenderDate } from '../utils/tenderUtils';
 
 export default function ChainOfCustodyTimeline({ tender, timelineData }) {
   let stages = timelineData;
@@ -26,32 +9,54 @@ export default function ChainOfCustodyTimeline({ tender, timelineData }) {
     const isDeadlinePassed = tender.deadline ? now >= new Date(tender.deadline).getTime() : false;
     const isOpeningPassed = tender.opening ? now >= new Date(tender.opening).getTime() : false;
     const isRevealPassed = tender.revealDeadline ? now >= new Date(tender.revealDeadline).getTime() : false;
-    const isAwarded = tender.status === 'AWARDED' || tender.status === 'Finalized';
+    
+    const s = normalizeTenderStatus(tender.status);
+    const isAwarded = ['awarded', 'disputed', 'disputeresolved', 'finalized'].includes(s) || 
+                      Boolean(tender.awardTxHash || tender.winnerAddress || tender.winner);
+
+    const winnerDisplay = tender.winner || (
+      tender.winnerAddress 
+        ? (tender.winnerAddress.length > 14 
+            ? `${tender.winnerAddress.substring(0, 8)}…${tender.winnerAddress.slice(-4)}` 
+            : tender.winnerAddress)
+        : 'L1 Bidder'
+    );
+    const amountDisplay = tender.winningAmount 
+      ? (String(tender.winningAmount).includes('ETH') ? tender.winningAmount : `${tender.winningAmount} ETH`)
+      : (tender.lowestBid ? `${tender.lowestBid} ETH` : '');
+
+    const awardTimestamp = isAwarded
+      ? (amountDisplay ? `Awarded: ${winnerDisplay} (${amountDisplay})` : `Awarded to ${winnerDisplay}`)
+      : 'Pending Evaluation';
+
+    const awardBlockDisplay = isAwarded 
+      ? formatBlockNumber(tender.awardBlock)
+      : 'Pending L1 Award';
 
     stages = [
       {
         title: 'Tender Initiated & Anchored',
-        timestamp: tender.blockNumber ? `Mined at Block #${tender.blockNumber}` : 'Recorded On-Chain',
-        block: tender.blockNumber ? `Block #${tender.blockNumber}` : 'Confirmed',
+        timestamp: tender.blockNumber ? formatBlockNumber(tender.blockNumber) : 'Recorded On-Chain',
+        block: tender.blockNumber ? formatBlockNumber(tender.blockNumber) : 'Confirmed',
         txHash: tender.txHash || null,
         status: 'completed'
       },
       {
         title: 'Bidding Submission Window',
-        timestamp: tender.deadline ? (isDeadlinePassed ? `Closed: ${formatDate(tender.deadline)}` : `Open until: ${formatDate(tender.deadline)}`) : 'Date TBD',
+        timestamp: tender.deadline ? (isDeadlinePassed ? `Closed: ${formatTenderDate(tender.deadline)}` : `Open until: ${formatTenderDate(tender.deadline)}`) : 'Date TBD',
         block: isDeadlinePassed ? 'Bidding Period Closed' : 'Accepting Sealed Bids',
         status: isDeadlinePassed || isAwarded ? 'completed' : 'active'
       },
       {
         title: 'Public Opening & Reveal',
-        timestamp: tender.opening ? (isOpeningPassed ? `Opened: ${formatDate(tender.opening)}` : `Opening: ${formatDate(tender.opening)}`) : 'Date TBD',
+        timestamp: tender.opening ? (isOpeningPassed ? `Opened: ${formatTenderDate(tender.opening)}` : `Opening: ${formatTenderDate(tender.opening)}`) : 'Date TBD',
         block: isRevealPassed || isAwarded ? 'Reveal Period Concluded' : (isOpeningPassed ? 'Reveal Active' : 'Pending Opening'),
         status: isRevealPassed || isAwarded ? 'completed' : (isOpeningPassed ? 'active' : 'pending')
       },
       {
         title: 'L1 Award & Standstill',
-        timestamp: isAwarded ? `Awarded to ${tender.winner || (tender.winnerAddress ? tender.winnerAddress.substring(0, 10) + '…' : 'L1 Bidder')}` : 'Pending Evaluation',
-        block: isAwarded ? (tender.awardBlock ? `Block #${tender.awardBlock}` : 'Mined On-Chain') : 'Pending L1 Award',
+        timestamp: awardTimestamp,
+        block: awardBlockDisplay,
         txHash: isAwarded ? (tender.awardTxHash || null) : null,
         status: isAwarded ? 'completed' : 'pending'
       }
@@ -70,7 +75,7 @@ export default function ChainOfCustodyTimeline({ tender, timelineData }) {
           Chain of Custody Ledger
         </h3>
         <span className="font-mono text-[11px] text-[#71716D] bg-[#FAFAF9] px-2.5 py-0.5 rounded border border-[#E8E6E1]">
-          Consensus Trail • Ethereum Sepolia
+          Audit Trail • Ethereum Sepolia
         </span>
       </div>
 
@@ -112,7 +117,7 @@ export default function ChainOfCustodyTimeline({ tender, timelineData }) {
                   className="font-mono text-[10px] text-blue-600 hover:text-blue-800 underline mt-1 truncate max-w-full block"
                   title={`View on Etherscan: ${stage.txHash}`}
                 >
-                  {stage.txHash.substring(0, 10)}…{stage.txHash.slice(-6)} ↗
+                  {stage.txHash.length > 18 ? `${stage.txHash.substring(0, 10)}…${stage.txHash.slice(-6)}` : stage.txHash} ↗
                 </a>
               )}
             </li>

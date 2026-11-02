@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { CONTRACT_ADDRESS, RPC_URL } from '../config';
 import { uploadDocumentToIpfs } from '../utils/ipfs';
 import { ensureCorrectChain, decodeContractError } from '../utils/chain';
+import { normalizeTenderStatus } from '../utils/tenderUtils';
 
 export default function DisputeFiling({ triggerToast, tenders = [] }) {
   const { walletAddress } = useAuth();
@@ -48,7 +49,7 @@ export default function DisputeFiling({ triggerToast, tenders = [] }) {
   }, []);
 
   const currentTender = tenders.find(t => t.id === selectedTenderId) || tenders[0];
-  const isAwarded = currentTender?.status === 'Awarded' || currentTender?.status === 'AWARDED';
+  const isAwarded = normalizeTenderStatus(currentTender?.status) === 'awarded';
 
   const winningVendorAddress = currentTender?.winnerAddress || '';
   const isWinningVendor = walletAddress && winningVendorAddress && walletAddress.toLowerCase() === winningVendorAddress.toLowerCase();
